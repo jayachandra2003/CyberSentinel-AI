@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import axios from "axios";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -46,12 +47,17 @@ export default function LoginPage() {
       } else {
         setServerError("Authentication failed. Please verify your credentials.");
       }
-    } catch (err: any) {
-      const backendError =
-        err.response?.data?.error ||
-        err.response?.data?.detail ||
-        err.message ||
-        "Invalid credentials or connection error.";
+    } catch (err: unknown) {
+      let backendError = "Invalid credentials or connection error.";
+      if (axios.isAxiosError(err)) {
+        backendError =
+          err.response?.data?.error ||
+          err.response?.data?.detail ||
+          err.message ||
+          backendError;
+      } else if (err instanceof Error) {
+        backendError = err.message;
+      }
       setServerError(typeof backendError === "string" ? backendError : JSON.stringify(backendError));
     } finally {
       setIsLoading(false);

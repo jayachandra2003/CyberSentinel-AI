@@ -25,7 +25,6 @@ import {
   AlertTriangle, 
   FileText, 
   CheckCircle2, 
-  TrendingUp, 
   Plus, 
   Search, 
   Activity, 

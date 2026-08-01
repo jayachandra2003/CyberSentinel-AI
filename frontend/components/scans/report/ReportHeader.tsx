@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Globe, Clock, Activity, ShieldCheck, Database, AlertTriangle, Code2, Award, Cpu, Calendar } from "lucide-react";
+import { Globe, ShieldCheck, Database, AlertTriangle, Code2, Award, Cpu, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Scan } from "@/services/api/scanService";
 import { calculateSecurityMetrics } from "./reportUtils";

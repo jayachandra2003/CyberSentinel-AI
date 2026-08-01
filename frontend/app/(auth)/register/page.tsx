@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { PasswordStrengthIndicator } from "@/components/auth/PasswordStrengthIndicator";
+import axios from "axios";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -60,12 +61,17 @@ export default function RegisterPage() {
       } else {
         setServerError(response.error || "Registration failed. Please check your details.");
       }
-    } catch (err: any) {
-      const backendError =
-        err.response?.data?.error ||
-        err.response?.data?.detail ||
-        err.message ||
-        "Failed to connect to authentication server.";
+    } catch (err: unknown) {
+      let backendError = "Failed to connect to authentication server.";
+      if (axios.isAxiosError(err)) {
+        backendError =
+          err.response?.data?.error ||
+          err.response?.data?.detail ||
+          err.message ||
+          backendError;
+      } else if (err instanceof Error) {
+        backendError = err.message;
+      }
       setServerError(typeof backendError === "string" ? backendError : JSON.stringify(backendError));
     } finally {
       setIsLoading(false);

@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { scanService } from "@/services/api/scanService";
 import { Globe, Radar, AlertCircle } from "lucide-react";
+import axios from "axios";
 
 interface NewScanModalProps {
   isOpen: boolean;
@@ -44,11 +45,11 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ isOpen, onClose, onS
       } else {
         setError(res.error || "Failed to launch scan.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Log full error to console for diagnostics (DevTools → Console)
       console.error("[NewScanModal] Scan creation error:", err);
 
-      if (err?.isAxiosError) {
+      if (axios.isAxiosError(err)) {
         if (!err.response) {
           // True network error: backend is unreachable or connection was refused/reset.
           // err.code: "ERR_NETWORK" | "ECONNREFUSED" | "ECONNABORTED" (timeout)
@@ -60,19 +61,23 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ isOpen, onClose, onS
         } else {
           // Backend returned an HTTP error response (4xx / 5xx).
           // Extract the most specific error detail from the response body.
-          const body = err.response.data;
+          const body = err.response.data as {
+            detail?: string | Array<{ msg: string }>;
+            error?: string;
+            message?: string;
+          };
           const detail =
             (typeof body?.detail === "string" ? body.detail : null) ??
-            (Array.isArray(body?.detail) ? body.detail.map((d: any) => d.msg).join("; ") : null) ??
+            (Array.isArray(body?.detail) ? body.detail.map((d: { msg: string }) => d.msg).join("; ") : null) ??
             body?.error ??
             body?.message ??
             `HTTP ${err.response.status}: ${err.message}`;
           setError(detail);
         }
+      } else if (err instanceof Error) {
+        setError(err.message);
       } else {
-        // Non-Axios JavaScript error (TypeError, ReferenceError, etc.)
-        // This must NEVER be shown as "Cannot connect" — it is a frontend bug.
-        setError(err?.message ?? "An unexpected error occurred. Check the browser console.");
+        setError("An unexpected error occurred. Check the browser console.");
       }
     } finally {
       setIsLoading(false);

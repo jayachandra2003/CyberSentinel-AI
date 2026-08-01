@@ -6,7 +6,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { ShieldCheck, Cpu, Lock, CheckCircle2 } from "lucide-react";
+import { ShieldCheck, Cpu, Lock } from "lucide-react";
 
 export default function AboutPage() {
   return (

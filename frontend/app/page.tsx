@@ -11,10 +11,7 @@ import {
   CheckCircle, 
   Server, 
   Activity, 
-  ArrowRight,
-  Shield,
-  Layers,
-  FileCheck
+  ArrowRight
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";

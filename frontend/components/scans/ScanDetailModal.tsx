@@ -8,7 +8,7 @@ import { OverviewTab } from "./report/OverviewTab";
 import { DnsTab } from "./report/DnsTab";
 import { SecurityTab } from "./report/SecurityTab";
 import { RawJsonTab } from "./report/RawJsonTab";
-import { Database, AlertTriangle } from "lucide-react";
+import { Database } from "lucide-react";
 
 interface ScanDetailModalProps {
   scan: Scan | null;
