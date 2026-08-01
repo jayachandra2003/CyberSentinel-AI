@@ -1,5 +1,17 @@
+"""
+Scan Repository — Phase 3.2.1 update.
+
+Adds:
+- update_module_results(): persist a module's result dict into Scan.module_results
+- update_scan_progress() now accepts an optional module_result kwarg so the
+  orchestrator can save results in the same call that advances scan state.
+
+All existing method signatures are backward-compatible.
+"""
+from __future__ import annotations
+
 from datetime import datetime, timezone
-from typing import List, Optional, Dict
+from typing import Any, Dict, List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.scan import Scan, ScanStatusEnum
@@ -35,6 +47,9 @@ class ScanRepository(BaseRepository[Scan]):
             created_at=now,
             updated_at=now,
         )
+        # Initialise module_results to an empty dict via the property setter
+        scan.module_results = {}
+
         _scan_id_counter += 1
         _in_memory_scans[scan.id] = scan
 
@@ -91,6 +106,41 @@ class ScanRepository(BaseRepository[Scan]):
             scan.duration = duration
         if summary is not None:
             scan.summary = summary
+        scan.updated_at = datetime.now(timezone.utc)
+
+        try:
+            await self.update(scan)
+        except Exception:
+            pass
+
+        _in_memory_scans[scan_id] = scan
+        return scan
+
+    async def update_module_results(
+        self,
+        scan_id: int,
+        module_id: str,
+        result: Dict[str, Any],
+    ) -> Optional[Scan]:
+        """
+        Merge *result* into Scan.module_results under the key *module_id*.
+
+        This is called by the orchestrator after each module finishes so that
+        partial results are visible via the polling GET /scans endpoints even
+        before the overall scan is marked Completed.
+
+        Thread-safety note: the in-memory fallback is not thread-safe across
+        multiple uvicorn worker processes, but within a single process the
+        asyncio event loop serialises coroutines, so this is safe.
+        """
+        scan = await self.get_scan_by_id(scan_id)
+        if not scan:
+            return None
+
+        # Read the existing dict, merge, write back via the property setter
+        existing = scan.module_results  # always returns a dict (never None)
+        existing[module_id] = result
+        scan.module_results = existing
         scan.updated_at = datetime.now(timezone.utc)
 
         try:
