@@ -48,6 +48,7 @@ export const authService = {
     const res = await apiClient.post<ApiResponse<TokenResponse>>("/auth/login", {
       email: data.email,
       password: data.password,
+      remember_me: Boolean(data.rememberMe),
     });
     return res.data;
   },

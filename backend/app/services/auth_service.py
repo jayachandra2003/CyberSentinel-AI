@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Optional
 from app.repositories.user_repository import UserRepository
 from app.services.audit_service import AuditService
@@ -62,8 +63,18 @@ class AuthService(BaseService):
         if not user.is_active:
             raise UnauthorizedException(detail="User account is deactivated.")
 
-        access_token = create_access_token(subject=user.id)
-        refresh_token = create_refresh_token(subject=user.id)
+        # Configure dynamic session lifetime based on "Remember Device" setting
+        if data.remember_me:
+            access_delta = timedelta(days=settings.REMEMBER_DEVICE_DAYS)
+            refresh_delta = timedelta(days=settings.REMEMBER_DEVICE_DAYS + 7)
+            expires_in_seconds = settings.REMEMBER_DEVICE_DAYS * 24 * 3600
+        else:
+            access_delta = timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
+            refresh_delta = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+            expires_in_seconds = settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600
+
+        access_token = create_access_token(subject=user.id, expires_delta=access_delta)
+        refresh_token = create_refresh_token(subject=user.id, expires_delta=refresh_delta)
 
         await self.audit_service.log_event(
             action="USER_LOGIN_SUCCESS",
@@ -71,13 +82,14 @@ class AuthService(BaseService):
             user_id=user.id,
             status="SUCCESS",
             ip_address=ip_address,
+            details_json=f'{{"remember_device": {str(data.remember_me).lower()}}}',
         )
 
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
             token_type="bearer",
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            expires_in=expires_in_seconds,
             user=UserResponse.model_validate(user),
         )
 
@@ -101,7 +113,7 @@ class AuthService(BaseService):
             access_token=new_access_token,
             refresh_token=new_refresh_token,
             token_type="bearer",
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
             user=UserResponse.model_validate(user),
         )
 

@@ -15,10 +15,10 @@ class Settings(BaseSettings):
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: int = 5432
     POSTGRES_USER: str = "cybersentinel"
-    POSTGRES_PASSWORD: str = "cybersentinel_secure_pass_2026"
+    POSTGRES_PASSWORD: str = "JChandra@2003"
     POSTGRES_DB: str = "cybersentinel_db"
     DATABASE_URL: str = (
-        "postgresql+asyncpg://cybersentinel:cybersentinel_secure_pass_2026@localhost:5432/cybersentinel_db"
+        "postgresql+asyncpg://cybersentinel:JChandra%402003@localhost:5432/cybersentinel_db"
     )
 
     # Redis & Celery
@@ -28,10 +28,12 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
 
-    # Security
+    # Security & Session JWT Configuration
     SECRET_KEY: str = "super-secret-jwt-key-change-in-production-2026"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ACCESS_TOKEN_EXPIRE_HOURS: int = 24
+    REMEMBER_DEVICE_DAYS: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # CORS

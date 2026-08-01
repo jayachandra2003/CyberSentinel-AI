@@ -6,6 +6,7 @@ from app.schemas.user import UserResponse
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
+    remember_me: Optional[bool] = False
 
 
 class RegisterRequest(BaseModel):

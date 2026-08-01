@@ -8,8 +8,9 @@ interface AuthContextType {
   user: UserResponse | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  rememberDevice: boolean;
   login: (data: LoginFormData) => Promise<boolean>;
-  logout: () => Promise<void>;
+  logout: (reason?: string) => Promise<void>;
   refreshSession: () => Promise<boolean>;
 }
 
@@ -19,6 +20,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserResponse | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [rememberDevice, setRememberDevice] = useState<boolean>(false);
 
   // Restore Session on App Load / Page Refresh
   const restoreSession = useCallback(async () => {
@@ -26,6 +28,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (typeof window !== "undefined") {
       const token = localStorage.getItem("token");
       const refreshToken = localStorage.getItem("refresh_token");
+      const isRemember = localStorage.getItem("remember_device") === "true";
+      setRememberDevice(isRemember);
 
       if (token) {
         try {
@@ -59,6 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               // Refresh failed
               localStorage.removeItem("token");
               localStorage.removeItem("refresh_token");
+              localStorage.removeItem("remember_device");
             }
           }
         }
@@ -74,37 +79,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [restoreSession]);
 
   const login = async (data: LoginFormData): Promise<boolean> => {
-    setIsLoading(true);
+    // Note: Do NOT mutate global isLoading here. Global isLoading represents initial session restoration.
+    // Mutating global isLoading causes RouteGuard to unmount the LoginPage component and mount SessionLoadingScreen,
+    // destroying local form state (such as serverError) when login fails.
     try {
       const res = await authService.loginUser(data);
       if (res.success && res.data.access_token) {
         localStorage.setItem("token", res.data.access_token);
         localStorage.setItem("refresh_token", res.data.refresh_token);
+        const isRemember = Boolean(data.rememberMe);
+        localStorage.setItem("remember_device", isRemember ? "true" : "false");
+        setRememberDevice(isRemember);
+
         setUser(res.data.user);
         setIsAuthenticated(true);
-        setIsLoading(false);
         return true;
       }
     } catch (err) {
-      setIsLoading(false);
       throw err;
     }
-    setIsLoading(false);
     return false;
   };
 
-  const logout = async () => {
+  const logout = async (reason?: string) => {
     try {
       await authService.logoutUser();
     } catch (err) {
-      // Ignore logout backend errors
+      // Ignore backend logout errors
     } finally {
       if (typeof window !== "undefined") {
         localStorage.removeItem("token");
         localStorage.removeItem("refresh_token");
+        localStorage.removeItem("remember_device");
+        if (reason) {
+          sessionStorage.setItem("logout_reason", reason);
+        }
       }
       setUser(null);
       setIsAuthenticated(false);
+      setRememberDevice(false);
     }
   };
 
@@ -119,6 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         isAuthenticated,
         isLoading,
+        rememberDevice,
         login,
         logout,
         refreshSession,

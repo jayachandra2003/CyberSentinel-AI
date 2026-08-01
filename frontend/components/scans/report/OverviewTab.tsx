@@ -14,17 +14,19 @@ import {
   Layers,
   CheckCircle,
   Circle,
+  FileText,
 } from "lucide-react";
-import { Scan, DnsScanResult } from "@/services/api/scanService";
+import { Scan, DnsScanResult, WhoisScanResult } from "@/services/api/scanService";
 import { calculateSecurityMetrics } from "./reportUtils";
 import { cn } from "@/lib/utils";
 
 interface OverviewTabProps {
   scan: Scan;
   dns?: DnsScanResult;
+  whois?: WhoisScanResult;
 }
 
-export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns }) => {
+export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois }) => {
   const metrics = calculateSecurityMetrics(scan);
   const { score, riskLevel, modulesPassed, totalModules, findingsCount, duration } = metrics;
 
@@ -49,10 +51,19 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns }) => {
   const hasSpf = obsText.toLowerCase().includes("spf record found") || obsText.toLowerCase().includes("spf");
   const missingDmarc = obsText.toLowerCase().includes("dmarc");
 
-  // Pipeline modules timeline definition (14-15px Sentence Case Chips)
+  // Extract WHOIS metrics
+  const registrar = whois?.registrar || "Unlisted";
+  const domainAge = whois?.domain_age_days !== null && whois?.domain_age_days !== undefined
+    ? `${whois.domain_age_days} Days (~${(whois.domain_age_days / 365).toFixed(1)}y)`
+    : "Unknown";
+  const daysExpiry = whois?.days_until_expiration !== null && whois?.days_until_expiration !== undefined
+    ? `${whois.days_until_expiration} Days`
+    : "Unknown";
+
+  // Pipeline modules timeline definition
   const pipelineModules = [
-    { name: "DNS", status: "completed" },
-    { name: "WHOIS", status: "pending" },
+    { name: "DNS", status: dns ? "completed" : "pending" },
+    { name: "WHOIS", status: whois ? "completed" : "pending" },
     { name: "SSL/TLS", status: "pending" },
     { name: "Headers", status: "pending" },
     { name: "Cookies", status: "pending" },
@@ -68,8 +79,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns }) => {
     { module: "DNS", label: "A Record Resolved", status: hasA, detail: hasA ? `${aRecords.length} IPv4 mapped (${aRecords[0]?.address || ""})` : "No A record" },
     { module: "DNS", label: "AAAA Record (IPv6)", status: hasAAAA, detail: hasAAAA ? "Dual-stack IPv6 active" : "No IPv6 record" },
     { module: "DNS", label: "NS Nameservers Delegated", status: hasNS, detail: hasNS ? `${nsRecords.length} authoritative servers` : "No NS records" },
-    { module: "DNS", label: "SPF Mail Policy Configured", status: hasSpf, detail: hasSpf ? "Sender policy framework detected" : "SPF check unverified" },
-    { module: "DNS", label: "DMARC Policy Enforcement", status: !missingDmarc, detail: missingDmarc ? "DMARC record missing or unconfigured" : "DMARC record present" },
+    { module: "WHOIS", label: "WHOIS Intelligence Queried", status: Boolean(whois), detail: whois ? `Registrar: ${registrar}` : "Pending WHOIS lookup" },
+    { module: "WHOIS", label: "Domain Registration Active", status: Boolean(whois && whois.days_until_expiration !== null && (whois.days_until_expiration ?? 0) > 0), detail: whois ? `Expires in ${daysExpiry}` : "Expiration unverified" },
   ];
 
   return (
@@ -93,7 +104,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns }) => {
         <OverviewMetricCard
           label="Modules Passed"
           value={`${modulesPassed} / ${totalModules}`}
-          subtext="DNS Assessment Module"
+          subtext="DNS & WHOIS Active"
           icon={<Layers className="h-4 w-4 text-purple-400" />}
           variant="purple"
         />
@@ -120,7 +131,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns }) => {
             <Activity className="h-4.5 w-4.5 text-cyan-500" />
             <span>Scanner Engine Pipeline</span>
           </div>
-          <span className="text-[13px] text-slate-500 font-normal">1 Completed · 8 Planned</span>
+          <span className="text-[13px] text-slate-500 font-normal">
+            {modulesPassed} Completed · {9 - modulesPassed} Planned
+          </span>
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
@@ -156,22 +169,22 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns }) => {
             </div>
 
             <p className="text-[15px] font-normal text-slate-700 dark:text-slate-300 leading-relaxed">
-              {scan.summary || "Defensive posture scan completed successfully. Core DNS security parameters verified."}
+              {scan.summary || "Defensive posture scan completed successfully. Core DNS & WHOIS parameters verified."}
             </p>
 
             {/* Executive Data Table (14px Table Text) */}
             <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden divide-y divide-slate-200 dark:divide-slate-800 text-[14px] font-normal">
               <ExecutiveRow label="Target Host" value={scan.target_domain} highlight isMono />
               <ExecutiveRow label="Scan Duration" value={duration ? `${duration}s` : "In Progress"} />
-              <ExecutiveRow label="Modules Executed" value={`${modulesPassed} / ${totalModules} (DNS)`} />
+              <ExecutiveRow label="Modules Executed" value={`${modulesPassed} / ${totalModules} (DNS & WHOIS)`} />
+              <ExecutiveRow label="Sponsoring Registrar" value={registrar} />
+              <ExecutiveRow label="Domain Age" value={domainAge} isMono />
+              <ExecutiveRow label="Registration Expiry" value={daysExpiry} isMono />
               <ExecutiveRow label="DNS Records Found" value={`${recordsFound} Records`} />
               <ExecutiveRow label="IPv4 (A Record)" value={hasA ? `${aRecords.length} Active` : "None"} />
-              <ExecutiveRow label="IPv6 (AAAA)" value={hasAAAA ? `${aaaaRecords.length} Active` : "None"} />
               <ExecutiveRow label="Nameservers" value={hasNS ? `${nsRecords.length} Delegated` : "None"} />
               <ExecutiveRow label="MX Status" value={isNullMX ? "NULL MX (RFC 7505)" : hasA ? `${mxRecords.length} Active` : "None"} />
-              <ExecutiveRow label="SPF Policy" value={hasSpf ? "Configured" : "Unverified"} badge={hasSpf ? "emerald" : "amber"} />
-              <ExecutiveRow label="DMARC Policy" value={missingDmarc ? "Missing" : "Configured"} badge={missingDmarc ? "amber" : "emerald"} />
-              <ExecutiveRow label="Overall Risk" value={riskLevel} badge={riskLevel === "LOW" ? "emerald" : "amber"} />
+              <ExecutiveRow label="Overall Risk Level" value={riskLevel} badge={riskLevel === "LOW" ? "emerald" : "amber"} />
             </div>
           </div>
         </div>
@@ -247,7 +260,7 @@ function ExecutiveRow({
       <span className="text-slate-500 dark:text-slate-400 text-[13px] font-normal">{label}</span>
       <span
         className={cn(
-          "text-[14px] font-medium",
+          "text-[14px] font-medium truncate max-w-[220px]",
           isMono && "font-mono",
           highlight ? "text-cyan-400" : "text-slate-900 dark:text-slate-200",
           badge === "emerald" && "text-emerald-400",
@@ -290,8 +303,7 @@ function OverviewMetricCard({
         {icon}
       </div>
       <div>
-        {/* Primary Value 28px Semibold */}
-        <div className="text-[28px] font-semibold font-mono tracking-tight text-slate-900 dark:text-white leading-tight">
+        <div className="text-[28px] font-semibold font-mono tracking-tight text-slate-900 dark:text-white leading-tight truncate">
           {value}
         </div>
         {subtext && <div className="text-[13px] font-normal text-slate-500 dark:text-slate-400 truncate mt-0.5">{subtext}</div>}

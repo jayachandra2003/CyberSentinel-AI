@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { SessionLoadingScreen } from "@/components/ui/SessionLoadingScreen";
+import { SessionTimeoutHandler } from "@/components/auth/SessionTimeoutHandler";
 
 const protectedRoutes = [
   "/dashboard",
@@ -51,5 +52,10 @@ export const RouteGuard: React.FC<{ children: React.ReactNode }> = ({ children }
     return <SessionLoadingScreen />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <SessionTimeoutHandler />
+      {children}
+    </>
+  );
 };

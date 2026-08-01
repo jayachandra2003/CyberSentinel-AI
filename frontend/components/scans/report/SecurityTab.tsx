@@ -40,7 +40,6 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ scan }) => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40">
         <div className="flex items-center gap-2.5">
           <Filter className="h-4.5 w-4.5 text-cyan-400" />
-          {/* Section Title 18px Semibold */}
           <span className="text-[18px] font-semibold text-slate-900 dark:text-white">
             Security & Risk Observations ({findings.length})
           </span>
@@ -147,7 +146,13 @@ function FindingCard({ finding }: { finding: FindingItem }) {
     },
   };
 
-  const config = severityConfig[finding.severity];
+  const config = severityConfig[finding.severity] ?? severityConfig.INFO;
+  const moduleLabel =
+    finding.module === "DNS"
+      ? "DNS Scanner"
+      : finding.module === "WHOIS"
+      ? "WHOIS Intelligence"
+      : finding.module;
 
   return (
     <div className={cn("p-4 rounded-xl border space-y-3 transition-all", config.borderCls)}>
@@ -161,7 +166,7 @@ function FindingCard({ finding }: { finding: FindingItem }) {
               {finding.title}
             </span>
             <span className="text-[13px] text-slate-500 dark:text-slate-400 font-normal mt-0.5 block">
-              Module Source: {finding.module}
+              Module Source: {moduleLabel}
             </span>
           </div>
         </div>

@@ -1,19 +1,20 @@
 "use client";
 
 import React from "react";
-import { Globe, ShieldCheck, Database, AlertTriangle, Code2, Award, Cpu, Calendar } from "lucide-react";
+import { Globe, ShieldCheck, Database, AlertTriangle, Code2, Award, Cpu, Calendar, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Scan } from "@/services/api/scanService";
 import { calculateSecurityMetrics } from "./reportUtils";
 import { cn } from "@/lib/utils";
 
-export type ReportTab = "overview" | "dns" | "security" | "json";
+export type ReportTab = "overview" | "dns" | "whois" | "security" | "json";
 
 interface ReportHeaderProps {
   scan: Scan;
   activeTab: ReportTab;
   setActiveTab: (tab: ReportTab) => void;
   dnsRecordCount: number;
+  whoisRecordCount?: number;
   securityObsCount: number;
 }
 
@@ -22,6 +23,7 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
   activeTab,
   setActiveTab,
   dnsRecordCount,
+  whoisRecordCount = 0,
   securityObsCount,
 }) => {
   const metrics = calculateSecurityMetrics(scan);
@@ -61,6 +63,7 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
   const tabs: { id: ReportTab; label: string; icon: React.ReactNode; badge?: number | string }[] = [
     { id: "overview", label: "Overview", icon: <ShieldCheck className="h-4 w-4" /> },
     { id: "dns", label: "DNS Records", icon: <Database className="h-4 w-4" />, badge: dnsRecordCount },
+    { id: "whois", label: "WHOIS", icon: <FileText className="h-4 w-4" />, badge: whoisRecordCount },
     { id: "security", label: "Security & Risk", icon: <AlertTriangle className="h-4 w-4" />, badge: securityObsCount },
     { id: "json", label: "Raw JSON", icon: <Code2 className="h-4 w-4" /> },
   ];

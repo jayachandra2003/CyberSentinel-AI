@@ -28,6 +28,7 @@ from app.models.scan import ScanStatusEnum
 from app.repositories.scan_repository import ScanRepository
 from app.scanner.interfaces.module_interface import IScannerModule
 from app.scanner.modules.dns import DNSScanner
+from app.scanner.modules.whois import WHOISScanner
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +51,8 @@ class ScanOrchestrator:
             # Production default: register all implemented scanner modules here
             self.modules = [
                 DNSScanner(),
+                WHOISScanner(),
                 # SSLScanner(),    # Phase 3.3
-                # WHOISScanner(),  # Phase 3.4
                 # HeadersScanner(),# Phase 3.5
             ]
 

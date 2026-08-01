@@ -2,13 +2,14 @@
 
 import React, { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { Scan, DnsScanResult } from "@/services/api/scanService";
+import { Scan, DnsScanResult, WhoisScanResult } from "@/services/api/scanService";
 import { ReportHeader, ReportTab } from "./report/ReportHeader";
 import { OverviewTab } from "./report/OverviewTab";
 import { DnsTab } from "./report/DnsTab";
+import { WhoisTab } from "./report/WhoisTab";
 import { SecurityTab } from "./report/SecurityTab";
 import { RawJsonTab } from "./report/RawJsonTab";
-import { Database } from "lucide-react";
+import { Database, FileText } from "lucide-react";
 
 interface ScanDetailModalProps {
   scan: Scan | null;
@@ -26,10 +27,14 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
   if (!scan) return null;
 
   const dns = scan.module_results?.dns as DnsScanResult | undefined;
-  const hasDns = dns && Object.keys(dns.results ?? {}).length > 0;
-
+  const hasDns = Boolean(dns && Object.keys(dns.results ?? {}).length > 0);
   const dnsRecordCount = dns?.total_records_found ?? 0;
-  const securityObsCount = dns?.security_observations.length ?? 0;
+
+  const whois = scan.module_results?.whois as WhoisScanResult | undefined;
+  const hasWhois = Boolean(whois && (whois.status === "completed" || whois.domain || whois.registrar));
+  const whoisObsCount = whois?.security_observations?.length ?? 0;
+
+  const totalObsCount = (dns?.security_observations?.length ?? 0) + whoisObsCount;
 
   return (
     <Modal
@@ -45,12 +50,13 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           dnsRecordCount={dnsRecordCount}
-          securityObsCount={securityObsCount}
+          whoisRecordCount={whoisObsCount}
+          securityObsCount={totalObsCount}
         />
 
         {/* Tab Content Container */}
         <div className="flex-1 overflow-y-auto min-h-0 pr-1 space-y-4 scrollbar-thin">
-          {activeTab === "overview" && <OverviewTab scan={scan} dns={hasDns ? dns : undefined} />}
+          {activeTab === "overview" && <OverviewTab scan={scan} dns={hasDns ? dns : undefined} whois={hasWhois ? whois : undefined} />}
 
           {activeTab === "dns" && (
             hasDns ? (
@@ -63,6 +69,22 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
                   scan.status === "Completed"
                     ? "No DNS record data was returned during this scan."
                     : "DNS lookup module is currently executing. Results will populate automatically upon completion."
+                }
+              />
+            )
+          )}
+
+          {activeTab === "whois" && (
+            hasWhois ? (
+              <WhoisTab whois={whois!} />
+            ) : (
+              <EmptyStatePlaceholder
+                icon={<FileText className="h-8 w-8 text-slate-500 mx-auto" />}
+                title="WHOIS Intelligence Unavailable"
+                description={
+                  scan.status === "Completed"
+                    ? "WHOIS query did not return domain registration data for this target."
+                    : "WHOIS intelligence module is currently querying TLD registrars. Results will populate upon completion."
                 }
               />
             )

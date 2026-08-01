@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShieldCheck, Mail, Lock, Eye, EyeOff, AlertCircle, ArrowRight } from "lucide-react";
+import { ShieldCheck, Mail, Lock, Eye, EyeOff, AlertCircle, ArrowRight, Info } from "lucide-react";
 import { loginSchema, LoginFormData } from "@/lib/validation/authSchemas";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/Button";
@@ -19,11 +19,14 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [inactivityNotice, setInactivityNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const {
     register,
     handleSubmit,
+    setValue,
+    setFocus,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -34,9 +37,21 @@ export default function LoginPage() {
     },
   });
 
+  // Check for auto-logout inactivity message on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const reason = sessionStorage.getItem("logout_reason");
+      if (reason === "inactivity") {
+        setInactivityNotice("You have been signed out due to inactivity.");
+        sessionStorage.removeItem("logout_reason");
+      }
+    }
+  }, []);
+
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     setServerError(null);
+    setInactivityNotice(null);
 
     try {
       // Execute login via global AuthContext
@@ -45,20 +60,35 @@ export default function LoginPage() {
       if (success) {
         router.push("/dashboard");
       } else {
-        setServerError("Authentication failed. Please verify your credentials.");
+        setServerError("Invalid email or password.");
+        setValue("password", "");
+        setFocus("password");
       }
     } catch (err: unknown) {
-      let backendError = "Invalid credentials or connection error.";
       if (axios.isAxiosError(err)) {
-        backendError =
-          err.response?.data?.error ||
-          err.response?.data?.detail ||
-          err.message ||
-          backendError;
-      } else if (err instanceof Error) {
-        backendError = err.message;
+        if (!err.response) {
+          // Network connection failure (Backend offline / unreachable)
+          setServerError("Unable to connect to the server. Please try again later.");
+        } else if (err.response.status === 401) {
+          // HTTP 401 Invalid Credentials
+          setServerError("Invalid email or password.");
+        } else {
+          // Other backend status
+          const backendErr =
+            err.response.data?.error ||
+            err.response.data?.message ||
+            err.response.data?.detail;
+          setServerError(
+            typeof backendErr === "string" ? backendErr : "Invalid email or password."
+          );
+        }
+      } else {
+        setServerError("Unable to connect to the server. Please try again later.");
       }
-      setServerError(typeof backendError === "string" ? backendError : JSON.stringify(backendError));
+
+      // UX Rules: Clear only password field & automatically refocus password input
+      setValue("password", "");
+      setFocus("password");
     } finally {
       setIsLoading(false);
     }
@@ -98,6 +128,21 @@ export default function LoginPage() {
           </div>
 
           <Card glow className="p-8 space-y-6 border-slate-200/80 dark:border-slate-800/80 shadow-xl">
+            {/* Inactivity Logout Toast Alert */}
+            <AnimatePresence>
+              {inactivityNotice && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 flex items-start gap-2.5 text-xs text-amber-700 dark:text-amber-300 font-medium"
+                >
+                  <Info className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-500" />
+                  <span>{inactivityNotice}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Server Error Alert Area */}
             <AnimatePresence>
               {serverError && (
@@ -105,9 +150,9 @@ export default function LoginPage() {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 flex items-start gap-2.5 text-xs text-rose-700 dark:text-rose-400"
+                  className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 flex items-start gap-2.5 text-xs text-rose-700 dark:text-rose-400 font-medium"
                 >
-                  <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5 text-rose-500" />
                   <span>{serverError}</span>
                 </motion.div>
               )}
@@ -156,9 +201,9 @@ export default function LoginPage() {
                     placeholder="••••••••••••"
                     {...register("password")}
                     className={`w-full rounded-xl border bg-slate-100/80 dark:bg-slate-950 py-2.5 pl-10 pr-10 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all ${
-                      errors.password ? "border-rose-500 dark:border-rose-500" : "border-slate-200 dark:border-slate-800"
+                      errors.password || serverError ? "border-rose-500 dark:border-rose-500" : "border-slate-200 dark:border-slate-800"
                     }`}
-                    aria-invalid={!!errors.password}
+                    aria-invalid={!!errors.password || !!serverError}
                   />
                   <button
                     type="button"

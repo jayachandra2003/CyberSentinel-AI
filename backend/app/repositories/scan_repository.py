@@ -1,13 +1,3 @@
-"""
-Scan Repository — Phase 3.2.1 update.
-
-Adds:
-- update_module_results(): persist a module's result dict into Scan.module_results
-- update_scan_progress() now accepts an optional module_result kwarg so the
-  orchestrator can save results in the same call that advances scan state.
-
-All existing method signatures are backward-compatible.
-"""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -16,9 +6,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.scan import Scan, ScanStatusEnum
 from app.repositories.base_repository import BaseRepository
-
-_in_memory_scans: Dict[int, Scan] = {}
-_scan_id_counter = 1
 
 
 class ScanRepository(BaseRepository[Scan]):
@@ -31,10 +18,8 @@ class ScanRepository(BaseRepository[Scan]):
         target_domain: str,
         scan_type: str = "Quick Scan",
     ) -> Scan:
-        global _scan_id_counter
         now = datetime.now(timezone.utc)
         scan = Scan(
-            id=_scan_id_counter,
             user_id=user_id,
             target_domain=target_domain,
             scan_type=scan_type,
@@ -47,40 +32,17 @@ class ScanRepository(BaseRepository[Scan]):
             created_at=now,
             updated_at=now,
         )
-        # Initialise module_results to an empty dict via the property setter
         scan.module_results = {}
-
-        _scan_id_counter += 1
-        _in_memory_scans[scan.id] = scan
-
-        try:
-            return await self.create(scan)
-        except Exception:
-            return scan
+        return await self.create(scan)
 
     async def get_user_scans(self, user_id: int, skip: int = 0, limit: int = 50) -> List[Scan]:
-        try:
-            result = await self.session.execute(
-                select(Scan).where(Scan.user_id == user_id).order_by(Scan.id.desc()).offset(skip).limit(limit)
-            )
-            scans = list(result.scalars().all())
-            if scans:
-                return scans
-        except Exception:
-            pass
-
-        user_scans = [s for s in _in_memory_scans.values() if s.user_id == user_id]
-        user_scans.sort(key=lambda x: x.id, reverse=True)
-        return user_scans[skip : skip + limit]
+        result = await self.session.execute(
+            select(Scan).where(Scan.user_id == user_id).order_by(Scan.id.desc()).offset(skip).limit(limit)
+        )
+        return list(result.scalars().all())
 
     async def get_scan_by_id(self, scan_id: int) -> Optional[Scan]:
-        try:
-            db_scan = await super().get(scan_id)
-            if db_scan:
-                return db_scan
-        except Exception:
-            pass
-        return _in_memory_scans.get(scan_id)
+        return await super().get(scan_id)
 
     async def update_scan_progress(
         self,
@@ -108,13 +70,7 @@ class ScanRepository(BaseRepository[Scan]):
             scan.summary = summary
         scan.updated_at = datetime.now(timezone.utc)
 
-        try:
-            await self.update(scan)
-        except Exception:
-            pass
-
-        _in_memory_scans[scan_id] = scan
-        return scan
+        return await self.update(scan)
 
     async def update_module_results(
         self,
@@ -124,42 +80,22 @@ class ScanRepository(BaseRepository[Scan]):
     ) -> Optional[Scan]:
         """
         Merge *result* into Scan.module_results under the key *module_id*.
-
-        This is called by the orchestrator after each module finishes so that
-        partial results are visible via the polling GET /scans endpoints even
-        before the overall scan is marked Completed.
-
-        Thread-safety note: the in-memory fallback is not thread-safe across
-        multiple uvicorn worker processes, but within a single process the
-        asyncio event loop serialises coroutines, so this is safe.
+        Persists into PostgreSQL database.
         """
         scan = await self.get_scan_by_id(scan_id)
         if not scan:
             return None
 
-        # Read the existing dict, merge, write back via the property setter
-        existing = scan.module_results  # always returns a dict (never None)
+        existing = scan.module_results
         existing[module_id] = result
         scan.module_results = existing
         scan.updated_at = datetime.now(timezone.utc)
 
-        try:
-            await self.update(scan)
-        except Exception:
-            pass
-
-        _in_memory_scans[scan_id] = scan
-        return scan
+        return await self.update(scan)
 
     async def delete_scan(self, scan_id: int) -> bool:
-        if scan_id in _in_memory_scans:
-            del _in_memory_scans[scan_id]
-
-        try:
-            scan = await super().get(scan_id)
-            if scan:
-                await self.delete(scan_id)
-                return True
-        except Exception:
-            pass
-        return True
+        scan = await super().get(scan_id)
+        if scan:
+            await self.delete(scan)
+            return True
+        return False

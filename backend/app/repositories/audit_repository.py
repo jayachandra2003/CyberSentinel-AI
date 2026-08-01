@@ -1,9 +1,7 @@
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.audit_log import AuditLog
 from app.repositories.base_repository import BaseRepository
-
-_in_memory_audit_logs = []
-_audit_id_counter = 1
 
 
 class AuditRepository(BaseRepository[AuditLog]):
@@ -14,14 +12,12 @@ class AuditRepository(BaseRepository[AuditLog]):
         self,
         action: str,
         resource: str,
-        user_id: int | None = None,
+        user_id: Optional[int] = None,
         status: str = "SUCCESS",
-        ip_address: str | None = None,
-        details_json: str | None = None,
+        ip_address: Optional[str] = None,
+        details_json: Optional[str] = None,
     ) -> AuditLog:
-        global _audit_id_counter
         log_entry = AuditLog(
-            id=_audit_id_counter,
             action=action,
             resource=resource,
             user_id=user_id,
@@ -29,10 +25,4 @@ class AuditRepository(BaseRepository[AuditLog]):
             ip_address=ip_address,
             details_json=details_json,
         )
-        _audit_id_counter += 1
-        _in_memory_audit_logs.append(log_entry)
-
-        try:
-            return await self.create(log_entry)
-        except Exception:
-            return log_entry
+        return await self.create(log_entry)
