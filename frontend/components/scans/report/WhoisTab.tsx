@@ -175,7 +175,7 @@ export const WhoisTab: React.FC<WhoisTabProps> = ({ whois }) => {
           <TimelineBlock
             label="Created Date"
             dateStr={whois.creation_date}
-            sub={ageDays !== null ? `${ageDays} days ago` : undefined}
+            sub={typeof ageDays === "number" ? `${ageDays} days ago` : undefined}
           />
           <TimelineBlock
             label="Last Updated Date"
@@ -185,8 +185,8 @@ export const WhoisTab: React.FC<WhoisTabProps> = ({ whois }) => {
           <TimelineBlock
             label="Registry Expiration"
             dateStr={whois.expiration_date || whois.registry_expiry}
-            sub={expiryDays !== null ? `${expiryDays} days remaining` : undefined}
-            highlight={expiryDays !== null && expiryDays < 30}
+            sub={typeof expiryDays === "number" ? `${expiryDays} days remaining` : undefined}
+            highlight={typeof expiryDays === "number" && expiryDays < 30}
           />
           <TimelineBlock
             label="DNSSEC Delegation"

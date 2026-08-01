@@ -66,7 +66,7 @@ export const Navbar: React.FC = () => {
                 <User className="h-3.5 w-3.5 text-cyan-500" />
                 <span className="max-w-[140px] truncate">{user?.email || "Analyst"}</span>
               </div>
-              <Button variant="ghost" size="sm" onClick={logout} className="text-rose-600 dark:text-rose-400 hover:bg-rose-500/10">
+              <Button variant="ghost" size="sm" onClick={() => logout()} className="text-rose-600 dark:text-rose-400 hover:bg-rose-500/10">
                 <LogOut className="h-4 w-4 sm:mr-1" />
                 <span className="hidden sm:inline">Logout</span>
               </Button>
@@ -122,7 +122,7 @@ export const Navbar: React.FC = () => {
             ))}
             <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex gap-2">
               {isAuthenticated ? (
-                <Button variant="ghost" size="sm" onClick={logout} className="w-full text-rose-500">
+                <Button variant="ghost" size="sm" onClick={() => logout()} className="w-full text-rose-500">
                   <LogOut className="mr-1 h-4 w-4" />
                   Logout ({user?.email})
                 </Button>

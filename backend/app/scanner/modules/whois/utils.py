@@ -32,7 +32,7 @@ def validate_domain(domain: str) -> Tuple[bool, str]:
         return False, "Target domain string is empty."
     if len(domain) > 253:
         return False, "Domain length exceeds 253 characters limit."
-    pattern = r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$"
+    pattern = r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$"
     if not re.match(pattern, domain, re.IGNORECASE):
         return False, "Format does not match a valid FQDN."
     return True, ""
