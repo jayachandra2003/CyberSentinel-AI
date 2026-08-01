@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+ENV/
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Python / FastAPI
+.pytest_cache/
+.coverage
+htmlcov/
+.nox/
+.hypothesis/
+*.egg-info/
+dist/
+build/
+
+# Environment Files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+frontend/.env
+
+# IDE & OS Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Docker volumes / temp data
+*.sqlite3
+postgres_data/
+redis_data/

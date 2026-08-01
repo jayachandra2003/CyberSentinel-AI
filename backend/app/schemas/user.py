@@ -1,0 +1,25 @@
+from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel, EmailStr
+from app.core.rbac import RoleEnum
+
+
+class UserBase(BaseModel):
+    email: EmailStr
+    full_name: Optional[str] = None
+    role: RoleEnum = RoleEnum.USER
+
+
+class UserCreate(UserBase):
+    password: str
+
+
+class UserResponse(UserBase):
+    id: int
+    is_active: bool
+    is_verified: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

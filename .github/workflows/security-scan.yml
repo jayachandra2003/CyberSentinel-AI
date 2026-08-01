@@ -1,0 +1,25 @@
+name: Static Security Analysis (Bandit & Trivy)
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Security Tools
+        run: |
+          pip install bandit
+
+      - name: Run Bandit Security Scan
+        run: |
+          bandit -r backend/app -ll

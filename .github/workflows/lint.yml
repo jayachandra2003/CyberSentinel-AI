@@ -1,0 +1,32 @@
+name: Code Quality & Lint Workflow
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint-all:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check Frontend Format & Lint
+        run: |
+          cd frontend
+          npm ci
+          npm run lint
+
+      - name: Check Backend Syntax Compilation
+        run: |
+          cd backend
+          python -m py_compile app/main.py

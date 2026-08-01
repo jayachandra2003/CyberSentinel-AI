@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cybersentinel-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cybersentinel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cybersentinel_secure_pass_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-cybersentinel_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cybersentinel} -d ${POSTGRES_DB:-cybersentinel_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cybersentinel-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: cybersentinel-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./docker/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cybersentinel-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: cybersentinel-backend
+    restart: always
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://cybersentinel:cybersentinel_secure_pass_2026@postgres:5432/cybersentinel_db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - SECRET_KEY=${SECRET_KEY:-super-secret-jwt-key-change-in-production-2026}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cybersentinel-network
+
+  celery:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.celery
+    container_name: cybersentinel-celery
+    restart: always
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://cybersentinel:cybersentinel_secure_pass_2026@postgres:5432/cybersentinel_db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - SECRET_KEY=${SECRET_KEY:-super-secret-jwt-key-change-in-production-2026}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cybersentinel-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: cybersentinel-frontend
+    restart: always
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - cybersentinel-network
+
+networks:
+  cybersentinel-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
