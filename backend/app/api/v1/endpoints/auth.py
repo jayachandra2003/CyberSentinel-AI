@@ -53,14 +53,14 @@ async def login(
     "/refresh",
     response_model=ApiResponse[TokenResponse],
     status_code=status.HTTP_200_OK,
-    summary="Refresh JWT Tokens",
+    summary="Refresh JWT Access & Refresh Tokens",
 )
 async def refresh(
     payload: RefreshTokenRequest,
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    """Validates refresh token and returns a new JWT Access Token."""
-    token_response = await auth_service.refresh_tokens(payload.refresh_token)
+    """Validates refresh token, executes 1-time token rotation, and returns new tokens."""
+    token_response = await auth_service.refresh_access_token(payload.refresh_token)
     return ApiResponse(
         success=True,
         data=token_response,
