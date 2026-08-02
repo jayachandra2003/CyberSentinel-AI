@@ -1,5 +1,15 @@
-"""
-HTTP Security Headers Assessment Module Placeholder.
-Contract interface for future HTTP security headers evaluation.
-No scanning logic implemented.
-"""
+from app.scanner.modules.headers.headers_models import (
+    HeaderAnalysisItem,
+    HeaderStatusEnum,
+    HeadersObservation,
+    HeadersScanResult,
+)
+from app.scanner.modules.headers.headers_scanner import HeadersScanner
+
+__all__ = [
+    "HeadersScanner",
+    "HeadersScanResult",
+    "HeaderAnalysisItem",
+    "HeaderStatusEnum",
+    "HeadersObservation",
+]

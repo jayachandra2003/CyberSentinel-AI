@@ -154,6 +154,8 @@ function FindingCard({ finding }: { finding: FindingItem }) {
       ? "WHOIS Intelligence"
       : finding.module === "SSL"
       ? "SSL / TLS Security Analysis"
+      : finding.module === "Headers"
+      ? "HTTP Security Headers"
       : finding.module;
 
   return (

@@ -136,6 +136,41 @@ export interface SslScanResult {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// HTTP Headers result types (mirror backend headers_models.py)
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface HeaderAnalysisItem {
+  header_name: string;
+  header_value?: string | null;
+  status: "configured" | "missing" | "weak" | "info" | "report_only";
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  title: string;
+  description: string;
+  recommendation: string;
+}
+
+export interface HeadersObservationItem {
+  code: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  title: string;
+  description: string;
+}
+
+export interface HeadersScanResult {
+  module_id: "headers";
+  status: string;
+  target: string;
+  effective_url?: string | null;
+  status_code?: number | null;
+  headers_count: number;
+  risk_score: number;
+  risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  analyzed_headers: HeaderAnalysisItem[];
+  raw_headers: Record<string, string>;
+  security_observations: HeadersObservationItem[];
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Scan types
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -145,6 +180,7 @@ export interface ModuleResults {
   dns?: DnsScanResult;
   whois?: WhoisScanResult;
   ssl?: SslScanResult;
+  headers?: HeadersScanResult;
   [key: string]: unknown;
 }
 

@@ -14,7 +14,7 @@ import {
   CheckCircle,
   Circle,
 } from "lucide-react";
-import { Scan, DnsScanResult, WhoisScanResult, SslScanResult } from "@/services/api/scanService";
+import { Scan, DnsScanResult, WhoisScanResult, SslScanResult, HeadersScanResult } from "@/services/api/scanService";
 import { calculateSecurityMetrics } from "./reportUtils";
 import { cn } from "@/lib/utils";
 
@@ -23,9 +23,10 @@ interface OverviewTabProps {
   dns?: DnsScanResult;
   whois?: WhoisScanResult;
   ssl?: SslScanResult;
+  headersModule?: HeadersScanResult;
 }
 
-export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl }) => {
+export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl, headersModule }) => {
   const metrics = calculateSecurityMetrics(scan);
   const { score, riskLevel, modulesPassed, totalModules, findingsCount, duration } = metrics;
 
@@ -49,7 +50,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl 
     { name: "DNS", status: dns ? "completed" : "pending" },
     { name: "WHOIS", status: whois ? "completed" : "pending" },
     { name: "SSL/TLS", status: ssl ? "completed" : "pending" },
-    { name: "Headers", status: "pending" },
+    { name: "Headers", status: headersModule ? "completed" : "pending" },
     { name: "Cookies", status: "pending" },
     { name: "Technologies", status: "pending" },
     { name: "Sitemap", status: "pending" },
@@ -57,7 +58,23 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl 
     { name: "AI Summary", status: "pending" },
   ];
 
-  // Compact compliance audit checks (Sentence Case, 14-15px Text)
+  const hasHsts = Boolean(
+    headersModule?.analyzed_headers?.some(
+      (h) => h.header_name === "Strict-Transport-Security" && h.status === "configured"
+    )
+  );
+  const hasCsp = Boolean(
+    headersModule?.analyzed_headers?.some(
+      (h) => h.header_name === "Content-Security-Policy" && h.status === "configured"
+    )
+  );
+  const hasXfo = Boolean(
+    headersModule?.analyzed_headers?.some(
+      (h) => h.header_name === "X-Frame-Options" && h.status === "configured"
+    )
+  );
+
+  // Compact compliance audit checks
   const checklistItems = [
     { module: "DNS", label: "DNS Resolution Active", status: Boolean(dns), detail: dns ? "Target host responding to DNS queries" : "Pending lookup" },
     { module: "DNS", label: "A Record Resolved", status: hasA, detail: hasA ? `${aRecords.length} IPv4 mapped (${aRecords[0]?.address || ""})` : "No A record" },
@@ -68,6 +85,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl 
     { module: "SSL", label: "SSL Certificate Handshake", status: Boolean(ssl?.is_valid), detail: ssl?.is_valid ? `Valid (${ssl.certificate?.subject_cn || ""})` : "Handshake unverified" },
     { module: "SSL", label: "TLS Protocol & Cipher", status: Boolean(ssl?.protocol?.protocol_version), detail: ssl?.protocol ? `${ssl.protocol.protocol_version} (${ssl.protocol.cipher_name || ""})` : "Protocol unverified" },
     { module: "SSL", label: "Certificate Expiration Valid", status: Boolean(ssl?.certificate && !ssl.certificate.is_expired), detail: ssl?.certificate ? `Expires in ${ssl.certificate.days_until_expiration ?? 0}d` : "Expiration unverified" },
+    { module: "Headers", label: "HSTS Transport Defense", status: hasHsts, detail: headersModule ? (hasHsts ? "HSTS active" : "HSTS missing/weak") : "Headers unverified" },
+    { module: "Headers", label: "CSP Content Restriction", status: hasCsp, detail: headersModule ? (hasCsp ? "CSP policy active" : "CSP missing/weak") : "Headers unverified" },
+    { module: "Headers", label: "Clickjacking Defense", status: hasXfo, detail: headersModule ? (hasXfo ? "Frame options active" : "Framing unrestricted") : "Headers unverified" },
   ];
 
   return (
@@ -91,7 +111,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl 
         <OverviewMetricCard
           label="Modules Passed"
           value={`${modulesPassed} / ${totalModules}`}
-          subtext="DNS, WHOIS & SSL Active"
+          subtext="Active Scanner Suite"
           icon={<Layers className="h-4 w-4 text-purple-400" />}
           variant="purple"
         />

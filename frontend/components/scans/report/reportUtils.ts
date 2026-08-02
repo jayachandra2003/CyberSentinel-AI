@@ -1,6 +1,6 @@
-import { Scan, DnsScanResult, WhoisScanResult, SslScanResult } from "@/services/api/scanService";
+import { Scan, DnsScanResult, WhoisScanResult, SslScanResult, HeadersScanResult } from "@/services/api/scanService";
 
-export type UnifiedModule = "DNS" | "WHOIS" | "SSL";
+export type UnifiedModule = "DNS" | "WHOIS" | "SSL" | "Headers";
 export type SeverityLevel = "CRITICAL" | "HIGH" | "MEDIUM" | "WARNING" | "INFO";
 
 export interface FindingItem {
@@ -55,6 +55,9 @@ const PATTERNS: { severity: SeverityLevel; regexes: RegExp[] }[] = [
       /weak signature algorithm/i,
       /self-signed certificate/i,
       /weak tls protocol/i,
+      /missing.*hsts/i,
+      /missing.*content-security-policy/i,
+      /missing.*x-frame-options/i,
     ],
   },
   {
@@ -69,6 +72,11 @@ const PATTERNS: { severity: SeverityLevel; regexes: RegExp[] }[] = [
       /recently registered/i,
       /connection timeout/i,
       /certificate expiring soon/i,
+      /missing.*x-content-type-options/i,
+      /missing.*referrer-policy/i,
+      /weak.*directives/i,
+      /csp.*report-only/i,
+      /report-only mode/i,
     ],
   },
   {
@@ -82,6 +90,7 @@ const PATTERNS: { severity: SeverityLevel; regexes: RegExp[] }[] = [
       /long ttl/i,
       /single nameserver/i,
       /missing domain creation date/i,
+      /missing.*permissions-policy/i,
     ],
   },
   {
@@ -98,6 +107,7 @@ const PATTERNS: { severity: SeverityLevel; regexes: RegExp[] }[] = [
       /privacy protection/i,
       /ssl\/tls posture healthy/i,
       /valid ssl certificate/i,
+      /http security posture healthy/i,
     ],
   },
 ];
@@ -125,6 +135,27 @@ export function normalizeSeverity(rawSeverity?: string | null): SeverityLevel {
 export function deriveRecommendation(text: string, severity: SeverityLevel): string {
   const lower = text.toLowerCase();
 
+  if (lower.includes("report-only")) {
+    return "Review violation telemetry logs and migrate Content-Security-Policy-Report-Only to an enforced Content-Security-Policy header.";
+  }
+  if (lower.includes("hsts") || lower.includes("strict-transport-security")) {
+    return "Add 'Strict-Transport-Security: max-age=31536000; includeSubDomains; preload' to web server response headers.";
+  }
+  if (lower.includes("content-security-policy") || lower.includes("csp")) {
+    return "Implement a restrictive Content-Security-Policy header defining trusted script-src, object-src, and default-src resource origins.";
+  }
+  if (lower.includes("x-frame-options") || lower.includes("clickjacking")) {
+    return "Set 'X-Frame-Options: DENY' or 'SAMEORIGIN' to prevent malicious Clickjacking frame embedding.";
+  }
+  if (lower.includes("x-content-type-options") || lower.includes("mime")) {
+    return "Set 'X-Content-Type-Options: nosniff' to disable browser MIME-type sniffing.";
+  }
+  if (lower.includes("referrer-policy")) {
+    return "Set 'Referrer-Policy: strict-origin-when-cross-origin' to restrict HTTP Referer header path disclosures.";
+  }
+  if (lower.includes("server") || lower.includes("powered-by")) {
+    return "Configure web server or application framework to suppress version numbers and technology disclosure headers.";
+  }
   if (lower.includes("dmarc")) {
     return "Publish a DMARC policy record (e.g. 'v=DMARC1; p=reject; rua=mailto:dmarc@yourdomain.com') to prevent email spoofing and domain impersonation.";
   }
@@ -222,6 +253,28 @@ export function extractReportFindings(scan?: Scan | null): FindingItem[] {
     });
   }
 
+  // 4. Headers Module Findings
+  const headersModule = scan.module_results.headers as HeadersScanResult | undefined;
+  if (headersModule && Array.isArray(headersModule.security_observations)) {
+    headersModule.security_observations.forEach((obs, idx) => {
+      if (obs && typeof obs === "object") {
+        const title = obs.title || "HTTP Headers Security Observation";
+        const description = obs.description || title;
+        const severity = normalizeSeverity(obs.severity);
+        const recommendation = deriveRecommendation(description, severity);
+
+        findings.push({
+          id: `headers-obs-${idx}`,
+          module: "Headers",
+          severity,
+          title,
+          description,
+          recommendation,
+        });
+      }
+    });
+  }
+
   return findings;
 }
 
@@ -230,7 +283,7 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
     score: 100,
     riskLevel: "LOW",
     modulesPassed: 0,
-    totalModules: 3,
+    totalModules: 4,
     findingsCount: { critical: 0, high: 0, medium: 0, warning: 0, info: 0, total: 0 },
     duration: null,
   };
@@ -275,9 +328,10 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
   score -= medium * 10;
   score -= warning * 5;
 
-  // Integrate WHOIS & SSL module risk scores if present
+  // Integrate WHOIS, SSL, and Headers risk scores dynamically if present
   const whois = scan.module_results?.whois as WhoisScanResult | undefined;
   const ssl = scan.module_results?.ssl as SslScanResult | undefined;
+  const headersModule = scan.module_results?.headers as HeadersScanResult | undefined;
 
   const componentScores = [score];
   if (whois && typeof whois.whois_score === "number") {
@@ -285,6 +339,9 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
   }
   if (ssl && typeof ssl.risk_score === "number") {
     componentScores.push(100 - ssl.risk_score);
+  }
+  if (headersModule && typeof headersModule.risk_score === "number") {
+    componentScores.push(100 - headersModule.risk_score);
   }
 
   score = Math.round(componentScores.reduce((a, b) => a + b, 0) / componentScores.length);
@@ -301,10 +358,11 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
     riskLevel = "MEDIUM";
   }
 
-  // Count executed modules dynamically
+  // Count executed modules dynamically from backend scan results
   const hasDns = Boolean(scan.module_results?.dns);
   const hasWhois = Boolean(scan.module_results?.whois);
   const hasSsl = Boolean(scan.module_results?.ssl);
+  const hasHeaders = Boolean(scan.module_results?.headers);
 
   let totalModules = 0;
   let modulesPassed = 0;
@@ -333,8 +391,16 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
     }
   }
 
+  if (hasHeaders) {
+    totalModules += 1;
+    const headersStatus = (scan.module_results?.headers as HeadersScanResult)?.status;
+    if (headersStatus === "completed") {
+      modulesPassed += 1;
+    }
+  }
+
   if (totalModules === 0) {
-    totalModules = 3;
+    totalModules = 4;
   }
 
   return {

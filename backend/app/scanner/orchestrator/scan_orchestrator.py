@@ -18,6 +18,7 @@ from app.scanner.interfaces.module_interface import IScannerModule
 from app.scanner.modules.dns import DNSScanner
 from app.scanner.modules.whois import WHOISScanner
 from app.scanner.modules.ssl import SSLScanner
+from app.scanner.modules.headers import HeadersScanner
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class ScanOrchestrator:
                 DNSScanner(),
                 WHOISScanner(),
                 SSLScanner(),
+                HeadersScanner(),
             ]
 
     def register_module(self, module: IScannerModule) -> None:

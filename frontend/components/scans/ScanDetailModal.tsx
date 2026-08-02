@@ -2,15 +2,16 @@
 
 import React, { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { Scan, DnsScanResult, WhoisScanResult, SslScanResult } from "@/services/api/scanService";
+import { Scan, DnsScanResult, WhoisScanResult, SslScanResult, HeadersScanResult } from "@/services/api/scanService";
 import { ReportHeader, ReportTab } from "./report/ReportHeader";
 import { OverviewTab } from "./report/OverviewTab";
 import { DnsTab } from "./report/DnsTab";
 import { WhoisTab } from "./report/WhoisTab";
 import { SslTab } from "./report/SslTab";
+import { HeadersTab } from "./report/HeadersTab";
 import { SecurityTab } from "./report/SecurityTab";
 import { RawJsonTab } from "./report/RawJsonTab";
-import { Database, FileText, Lock } from "lucide-react";
+import { Database, FileText, Lock, Shield } from "lucide-react";
 
 interface ScanDetailModalProps {
   scan: Scan | null;
@@ -39,7 +40,15 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
   const hasSsl = Boolean(ssl && (ssl.status === "completed" || ssl.certificate || ssl.protocol));
   const sslObsCount = ssl?.security_observations?.length ?? 0;
 
-  const totalObsCount = (dns?.security_observations?.length ?? 0) + whoisObsCount + sslObsCount;
+  const headersModule = scan.module_results?.headers as HeadersScanResult | undefined;
+  const hasHeaders = Boolean(headersModule && (headersModule.status === "completed" || headersModule.headers_count > 0));
+  const headersObsCount = headersModule?.security_observations?.length ?? 0;
+
+  const totalObsCount =
+    (dns?.security_observations?.length ?? 0) +
+    whoisObsCount +
+    sslObsCount +
+    headersObsCount;
 
   return (
     <Modal
@@ -57,6 +66,7 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
           dnsRecordCount={dnsRecordCount}
           whoisRecordCount={whoisObsCount}
           sslObsCount={sslObsCount}
+          headersObsCount={headersObsCount}
           securityObsCount={totalObsCount}
         />
 
@@ -68,6 +78,7 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
               dns={hasDns ? dns : undefined}
               whois={hasWhois ? whois : undefined}
               ssl={hasSsl ? ssl : undefined}
+              headersModule={hasHeaders ? headersModule : undefined}
             />
           )}
 
@@ -114,6 +125,22 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
                   scan.status === "Completed"
                     ? "No SSL certificate or handshake data was returned during this scan."
                     : "SSL/TLS security analysis module is currently executing. Results will populate upon completion."
+                }
+              />
+            )
+          )}
+
+          {activeTab === "headers" && (
+            hasHeaders ? (
+              <HeadersTab headers={headersModule!} />
+            ) : (
+              <EmptyStatePlaceholder
+                icon={<Shield className="h-8 w-8 text-slate-500 mx-auto" />}
+                title="HTTP Security Headers Analysis Unavailable"
+                description={
+                  scan.status === "Completed"
+                    ? "No HTTP response headers were captured during this scan."
+                    : "HTTP Security Headers module is currently inspecting target endpoints. Results will populate upon completion."
                 }
               />
             )

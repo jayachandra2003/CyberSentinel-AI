@@ -1,13 +1,13 @@
 "use client";
 
 import React from "react";
-import { Globe, ShieldCheck, Database, AlertTriangle, Code2, Award, Cpu, Calendar, FileText, Lock } from "lucide-react";
+import { Globe, ShieldCheck, Database, AlertTriangle, Code2, Award, Cpu, Calendar, FileText, Lock, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Scan } from "@/services/api/scanService";
 import { calculateSecurityMetrics } from "./reportUtils";
 import { cn } from "@/lib/utils";
 
-export type ReportTab = "overview" | "dns" | "whois" | "ssl" | "security" | "json";
+export type ReportTab = "overview" | "dns" | "whois" | "ssl" | "headers" | "security" | "json";
 
 interface ReportHeaderProps {
   scan: Scan;
@@ -16,6 +16,7 @@ interface ReportHeaderProps {
   dnsRecordCount: number;
   whoisRecordCount?: number;
   sslObsCount?: number;
+  headersObsCount?: number;
   securityObsCount: number;
 }
 
@@ -26,6 +27,7 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
   dnsRecordCount,
   whoisRecordCount = 0,
   sslObsCount = 0,
+  headersObsCount = 0,
   securityObsCount,
 }) => {
   const metrics = calculateSecurityMetrics(scan);
@@ -67,6 +69,7 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
     { id: "dns", label: "DNS Records", icon: <Database className="h-4 w-4" />, badge: dnsRecordCount },
     { id: "whois", label: "WHOIS", icon: <FileText className="h-4 w-4" />, badge: whoisRecordCount },
     { id: "ssl", label: "SSL / TLS", icon: <Lock className="h-4 w-4" />, badge: sslObsCount },
+    { id: "headers", label: "HTTP Headers", icon: <Shield className="h-4 w-4" />, badge: headersObsCount },
     { id: "security", label: "Security & Risk", icon: <AlertTriangle className="h-4 w-4" />, badge: securityObsCount },
     { id: "json", label: "Raw JSON", icon: <Code2 className="h-4 w-4" /> },
   ];
