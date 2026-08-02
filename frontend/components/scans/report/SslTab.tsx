@@ -5,15 +5,10 @@ import {
   ShieldCheck,
   ShieldAlert,
   Lock,
-  Calendar,
   KeyRound,
-  Cpu,
   CheckCircle2,
   AlertTriangle,
   FileCheck,
-  Clock,
-  Shield,
-  Layers,
 } from "lucide-react";
 import { SslScanResult } from "@/services/api/scanService";
 import { Badge } from "@/components/ui/Badge";

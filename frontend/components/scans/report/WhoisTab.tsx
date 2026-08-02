@@ -9,8 +9,6 @@ import {
   Globe,
   Clock,
   UserCheck,
-  Mail,
-  Phone,
   Server,
   Copy,
   Check,
@@ -19,7 +17,6 @@ import {
   Lock,
   ChevronDown,
   ChevronRight,
-  ShieldAlert,
   Award,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";

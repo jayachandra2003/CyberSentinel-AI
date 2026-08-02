@@ -279,7 +279,7 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
   const whois = scan.module_results?.whois as WhoisScanResult | undefined;
   const ssl = scan.module_results?.ssl as SslScanResult | undefined;
 
-  let componentScores = [score];
+  const componentScores = [score];
   if (whois && typeof whois.whois_score === "number") {
     componentScores.push(whois.whois_score);
   }

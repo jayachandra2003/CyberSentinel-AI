@@ -8,13 +8,11 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  Shield,
   Check,
   Award,
   Layers,
   CheckCircle,
   Circle,
-  FileText,
 } from "lucide-react";
 import { Scan, DnsScanResult, WhoisScanResult, SslScanResult } from "@/services/api/scanService";
 import { calculateSecurityMetrics } from "./reportUtils";
@@ -32,11 +30,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl 
   const { score, riskLevel, modulesPassed, totalModules, findingsCount, duration } = metrics;
 
   // Extract DNS metrics
-  const recordsFound = dns?.total_records_found ?? 0;
   const aRecords = dns?.results.A?.records ?? [];
   const aaaaRecords = dns?.results.AAAA?.records ?? [];
   const nsRecords = dns?.results.NS?.records ?? [];
-  const mxRecords = dns?.results.MX?.records ?? [];
 
   const hasA = Boolean(aRecords.length);
   const hasAAAA = Boolean(aaaaRecords.length);
