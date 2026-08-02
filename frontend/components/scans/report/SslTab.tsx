@@ -28,7 +28,7 @@ export const SslTab: React.FC<SslTabProps> = ({ ssl }) => {
       case "CRITICAL":
         return <Badge variant="rose" className="text-[12px] font-medium px-2.5 py-0.5">Risk: Critical</Badge>;
       case "HIGH":
-        return <Badge variant="orange" className="text-[12px] font-medium px-2.5 py-0.5">Risk: High</Badge>;
+        return <Badge variant="amber" className="text-[12px] font-medium px-2.5 py-0.5">Risk: High</Badge>;
       case "MEDIUM":
         return <Badge variant="amber" className="text-[12px] font-medium px-2.5 py-0.5">Risk: Medium</Badge>;
       default:
