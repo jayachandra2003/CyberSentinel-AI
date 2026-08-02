@@ -108,29 +108,42 @@ class AuthService(BaseService):
             user=UserResponse.model_validate(user),
         )
 
-    async def refresh_tokens(self, refresh_token: str) -> TokenResponse:
-        payload = decode_jwt_token(refresh_token)
-        if payload.get("type") != "refresh":
-            raise UnauthorizedException(detail="Invalid token type for refresh.")
+    async def refresh_access_token(self, refresh_token: str) -> TokenResponse:
+        """Validates incoming raw refresh token, executes 1-time rotation, and issues new JWT access token."""
+        # 1. Validate session
+        session = await self.session_service.validate_refresh_token(refresh_token)
+        if not session:
+            raise UnauthorizedException(detail="Invalid, expired, or revoked refresh token.")
 
-        user_id_str = payload.get("sub")
-        if not user_id_str:
-            raise UnauthorizedException(detail="Invalid token subject.")
+        # 2. Perform 1-time token rotation
+        new_raw_refresh_token, updated_session = await self.session_service.rotate_refresh_token(session)
 
-        user = await self.user_repo.get(int(user_id_str))
+        # 3. Lookup user
+        user = await self.user_repo.get(updated_session.user_id)
         if not user or not user.is_active:
             raise UnauthorizedException(detail="User account inactive or not found.")
 
-        new_access_token = create_access_token(subject=user.id)
-        new_refresh_token = create_refresh_token(subject=user.id)
+        # 4. Issue new access token using existing create_access_token()
+        if updated_session.remember_device:
+            access_delta = timedelta(days=settings.REMEMBER_DEVICE_DAYS)
+            expires_in_seconds = settings.REMEMBER_DEVICE_DAYS * 24 * 3600
+        else:
+            access_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            expires_in_seconds = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+
+        new_access_token = create_access_token(subject=user.id, expires_delta=access_delta)
 
         return TokenResponse(
             access_token=new_access_token,
-            refresh_token=new_refresh_token,
+            refresh_token=new_raw_refresh_token,
             token_type="bearer",
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            expires_in=expires_in_seconds,
             user=UserResponse.model_validate(user),
         )
+
+    async def refresh_tokens(self, refresh_token: str) -> TokenResponse:
+        """Legacy compatibility wrapper calling refresh_access_token."""
+        return await self.refresh_access_token(refresh_token)
 
     async def logout_user(self, user_id: int, ip_address: Optional[str] = None) -> None:
         await self.audit_service.log_event(

@@ -14,7 +14,7 @@ from app.security.session_security import (
 
 
 class SessionService(BaseService):
-    """Core domain service for user session creation, state updates, revocation, and maintenance."""
+    """Core domain service for user session creation, state updates, rotation, revocation, and maintenance."""
 
     def __init__(self, session_repo: SessionRepository):
         self.session_repo = session_repo
@@ -29,21 +29,7 @@ class SessionService(BaseService):
         login_method: str = "PASSWORD",
         login_source: Optional[str] = "web",
     ) -> Tuple[UserSession, str]:
-        """Creates a new active database session record and returns both the record and raw refresh token.
-
-        Args:
-            user_id (int): The ID of the user creating the session.
-            remember_device (bool): If True, session expiry is set for 30 days; otherwise 24 hours.
-            device_name (Optional[str]): Human-readable device string.
-            user_agent (Optional[str]): Client HTTP User-Agent header string.
-            ip_address (Optional[str]): Client IPv4/IPv6 address.
-            login_method (str): Authentication mechanism used (default: "PASSWORD").
-            login_source (Optional[str]): Client application interface (default: "web").
-
-        Returns:
-            Tuple[UserSession, str]: A tuple containing the persisted UserSession ORM instance
-                and the raw unhashed opaque refresh token string (never stored in DB).
-        """
+        """Creates a new active database session record and returns both the record and raw refresh token."""
         session_uuid = generate_session_uuid()
         raw_refresh_token = generate_refresh_token()
         refresh_token_hash = hash_refresh_token(raw_refresh_token)
@@ -70,6 +56,64 @@ class SessionService(BaseService):
         created_record = await self.session_repo.create(user_session)
         return created_record, raw_refresh_token
 
+    async def validate_refresh_token(self, raw_refresh_token: str) -> Optional[UserSession]:
+        """Hashes incoming raw refresh token, looks up matching active session, and validates expiration.
+
+        Args:
+            raw_refresh_token (str): Raw opaque refresh token supplied by client.
+
+        Returns:
+            Optional[UserSession]: Active UserSession record if valid and unexpired, None otherwise.
+        """
+        if not raw_refresh_token:
+            return None
+
+        incoming_hash = hash_refresh_token(raw_refresh_token)
+        session_record = await self.session_repo.get_by_refresh_hash(incoming_hash)
+        if not session_record or not session_record.is_active:
+            return None
+
+        return await self.expire_session_if_needed(session_record)
+
+    async def rotate_refresh_token(self, session: UserSession) -> Tuple[str, UserSession]:
+        """Performs 1-time token rotation: generates new raw token & hash, updates timestamps, and persists.
+
+        Args:
+            session (UserSession): The active UserSession record to rotate.
+
+        Returns:
+            Tuple[str, UserSession]: Tuple containing the new raw opaque refresh token string
+                and the updated UserSession ORM record.
+        """
+        new_raw_refresh_token = generate_refresh_token()
+        new_hash = hash_refresh_token(new_raw_refresh_token)
+
+        now = touch_session_time()
+        session.refresh_token_hash = new_hash
+        session.last_refresh_at = now
+        session.last_activity = now
+
+        updated_session = await self.session_repo.update(session)
+        return new_raw_refresh_token, updated_session
+
+    async def expire_session_if_needed(self, session: UserSession) -> Optional[UserSession]:
+        """Evaluates session expiration timestamp. If expired, marks inactive and persists.
+
+        Args:
+            session (UserSession): UserSession record to evaluate.
+
+        Returns:
+            Optional[UserSession]: None if session was expired, otherwise the active UserSession.
+        """
+        if is_session_expired(session.expires_at):
+            now = touch_session_time()
+            session.is_active = False
+            session.revoked_at = now
+            session.revoked_reason = "EXPIRED"
+            await self.session_repo.update(session)
+            return None
+        return session
+
     async def get_session_by_uuid(self, session_uuid: str) -> Optional[UserSession]:
         """Retrieves a session record by its unique UUID regardless of active status."""
         return await self.session_repo.get_by_uuid(session_uuid)
@@ -80,15 +124,7 @@ class SessionService(BaseService):
         if not session_record or not session_record.is_active:
             return None
 
-        if is_session_expired(session_record.expires_at):
-            now = touch_session_time()
-            session_record.is_active = False
-            session_record.revoked_at = now
-            session_record.revoked_reason = "EXPIRED"
-            await self.session_repo.update(session_record)
-            return None
-
-        return session_record
+        return await self.expire_session_if_needed(session_record)
 
     async def update_last_activity(self, session_uuid: str) -> Optional[UserSession]:
         """Updates only the last_activity timestamp using touch_session_time()."""
@@ -102,7 +138,7 @@ class SessionService(BaseService):
         self, session_uuid: str, new_refresh_token_hash: Optional[str] = None
     ) -> Optional[UserSession]:
         """Updates last_refresh_at timestamp and optionally updates refresh token hash during rotation."""
-        session_record = await self.session_repo.get_by_uuid(session_uuid)
+        session_record = await self.session_record.get_by_uuid(session_uuid)
         if session_record and session_record.is_active:
             now = touch_session_time()
             session_record.last_refresh_at = now

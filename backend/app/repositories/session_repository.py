@@ -35,6 +35,15 @@ class SessionRepository(BaseRepository[UserSession]):
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
+    async def get_by_refresh_hash(self, refresh_token_hash: str) -> Optional[UserSession]:
+        """Alias for get_by_refresh_token_hash for refresh token rotation lookup."""
+        return await self.get_by_refresh_token_hash(refresh_token_hash)
+
+    async def update_refresh_hash(self, session_record: UserSession, new_hash: str) -> UserSession:
+        """Updates the stored refresh token hash for a session."""
+        session_record.refresh_token_hash = new_hash
+        return await self.update(session_record)
+
     async def get_all_active_by_user(self, user_id: int) -> List[UserSession]:
         """Retrieves all active and unexpired sessions for a specific user ordered by last activity."""
         now = datetime.now(timezone.utc)
