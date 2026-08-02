@@ -4,8 +4,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.session import AsyncSessionLocal
 from app.repositories.user_repository import UserRepository
+from app.repositories.session_repository import SessionRepository
 from app.repositories.audit_repository import AuditRepository
 from app.services.user_service import UserService
+from app.services.session_service import SessionService
 from app.services.audit_service import AuditService
 from app.services.auth_service import AuthService
 from app.security.jwt import decode_jwt_token
@@ -28,6 +30,10 @@ def get_user_repository(session: AsyncSession = Depends(get_db)) -> UserReposito
     return UserRepository(session)
 
 
+def get_session_repository(session: AsyncSession = Depends(get_db)) -> SessionRepository:
+    return SessionRepository(session)
+
+
 def get_audit_repository(session: AsyncSession = Depends(get_db)) -> AuditRepository:
     return AuditRepository(session)
 
@@ -44,11 +50,18 @@ def get_user_service(
     return UserService(user_repo)
 
 
+def get_session_service(
+    session_repo: SessionRepository = Depends(get_session_repository),
+) -> SessionService:
+    return SessionService(session_repo)
+
+
 def get_auth_service(
     user_repo: UserRepository = Depends(get_user_repository),
     audit_service: AuditService = Depends(get_audit_service),
+    session_service: SessionService = Depends(get_session_service),
 ) -> AuthService:
-    return AuthService(user_repo, audit_service)
+    return AuthService(user_repo, audit_service, session_service)
 
 
 async def get_current_user(

@@ -1,6 +1,7 @@
 from datetime import timedelta
 from typing import Optional
 from app.repositories.user_repository import UserRepository
+from app.services.session_service import SessionService
 from app.services.audit_service import AuditService
 from app.services.base_service import BaseService
 from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse
@@ -13,9 +14,17 @@ from app.models.user import User
 
 
 class AuthService(BaseService):
-    def __init__(self, user_repo: UserRepository, audit_service: AuditService):
+    """Authentication Domain Service integrating user management with Enterprise Session Infrastructure."""
+
+    def __init__(
+        self,
+        user_repo: UserRepository,
+        audit_service: AuditService,
+        session_service: SessionService,
+    ):
         self.user_repo = user_repo
         self.audit_service = audit_service
+        self.session_service = session_service
 
     async def register_user(self, data: RegisterRequest, ip_address: Optional[str] = None) -> User:
         existing_user = await self.user_repo.get_by_email(data.email)
@@ -63,18 +72,24 @@ class AuthService(BaseService):
         if not user.is_active:
             raise UnauthorizedException(detail="User account is deactivated.")
 
-        # Configure dynamic session lifetime based on "Remember Device" setting
+        # Create Enterprise PostgreSQL Session via injected SessionService
+        user_session, raw_refresh_token = await self.session_service.create_session(
+            user_id=user.id,
+            remember_device=bool(data.remember_me),
+            ip_address=ip_address,
+            login_method="PASSWORD",
+            login_source="web",
+        )
+
+        # Create JWT Access Token using standard claims & expiry
         if data.remember_me:
             access_delta = timedelta(days=settings.REMEMBER_DEVICE_DAYS)
-            refresh_delta = timedelta(days=settings.REMEMBER_DEVICE_DAYS + 7)
             expires_in_seconds = settings.REMEMBER_DEVICE_DAYS * 24 * 3600
         else:
             access_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-            refresh_delta = timedelta(hours=settings.REFRESH_TOKEN_EXPIRE_HOURS)
             expires_in_seconds = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
 
         access_token = create_access_token(subject=user.id, expires_delta=access_delta)
-        refresh_token = create_refresh_token(subject=user.id, expires_delta=refresh_delta)
 
         await self.audit_service.log_event(
             action="USER_LOGIN_SUCCESS",
@@ -82,12 +97,12 @@ class AuthService(BaseService):
             user_id=user.id,
             status="SUCCESS",
             ip_address=ip_address,
-            details_json=f'{{"remember_device": {str(data.remember_me).lower()}}}',
+            details_json=f'{{"session_uuid": "{user_session.session_uuid}", "remember_device": {str(data.remember_me).lower()}}}',
         )
 
         return TokenResponse(
             access_token=access_token,
-            refresh_token=refresh_token,
+            refresh_token=raw_refresh_token,
             token_type="bearer",
             expires_in=expires_in_seconds,
             user=UserResponse.model_validate(user),
