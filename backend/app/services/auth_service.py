@@ -69,9 +69,9 @@ class AuthService(BaseService):
             refresh_delta = timedelta(days=settings.REMEMBER_DEVICE_DAYS + 7)
             expires_in_seconds = settings.REMEMBER_DEVICE_DAYS * 24 * 3600
         else:
-            access_delta = timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
-            refresh_delta = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-            expires_in_seconds = settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600
+            access_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            refresh_delta = timedelta(hours=settings.REFRESH_TOKEN_EXPIRE_HOURS)
+            expires_in_seconds = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
 
         access_token = create_access_token(subject=user.id, expires_delta=access_delta)
         refresh_token = create_refresh_token(subject=user.id, expires_delta=refresh_delta)
@@ -113,7 +113,7 @@ class AuthService(BaseService):
             access_token=new_access_token,
             refresh_token=new_refresh_token,
             token_type="bearer",
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             user=UserResponse.model_validate(user),
         )
 
