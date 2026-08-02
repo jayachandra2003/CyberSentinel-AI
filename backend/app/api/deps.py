@@ -14,6 +14,7 @@ from app.security.jwt import decode_jwt_token
 from app.core.exceptions import UnauthorizedException, ForbiddenException
 from app.core.rbac import PermissionEnum, has_permission
 from app.models.user import User
+from app.models.user_session import UserSession
 
 security_bearer = HTTPBearer(auto_error=False)
 
@@ -93,6 +94,26 @@ async def get_current_active_user(
     if not current_user.is_active:
         raise UnauthorizedException(detail="User account is inactive.")
     return current_user
+
+
+async def get_current_session(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
+    session_service: SessionService = Depends(get_session_service),
+    current_user: User = Depends(get_current_active_user),
+) -> Optional[UserSession]:
+    """Extracts sid claim from JWT access token, retrieves exact active session, and verifies ownership."""
+    if not credentials or not credentials.credentials:
+        return None
+    try:
+        payload = decode_jwt_token(credentials.credentials)
+        sid = payload.get("sid")
+        if sid:
+            session = await session_service.get_active_session(sid)
+            if session and session.user_id == current_user.id:
+                return session
+    except Exception:
+        return None
+    return None
 
 
 def require_permission(permission: PermissionEnum):

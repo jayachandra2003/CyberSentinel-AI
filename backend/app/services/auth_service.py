@@ -81,7 +81,7 @@ class AuthService(BaseService):
             login_source="web",
         )
 
-        # Create JWT Access Token using standard claims & expiry
+        # Create JWT Access Token with session binding (sid claim)
         if data.remember_me:
             access_delta = timedelta(days=settings.REMEMBER_DEVICE_DAYS)
             expires_in_seconds = settings.REMEMBER_DEVICE_DAYS * 24 * 3600
@@ -89,7 +89,11 @@ class AuthService(BaseService):
             access_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
             expires_in_seconds = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
 
-        access_token = create_access_token(subject=user.id, expires_delta=access_delta)
+        access_token = create_access_token(
+            subject=user.id,
+            expires_delta=access_delta,
+            sid=user_session.session_uuid,
+        )
 
         await self.audit_service.log_event(
             action="USER_LOGIN_SUCCESS",
@@ -123,7 +127,7 @@ class AuthService(BaseService):
         if not user or not user.is_active:
             raise UnauthorizedException(detail="User account inactive or not found.")
 
-        # 4. Issue new access token using existing create_access_token()
+        # 4. Issue new access token with session binding (sid claim)
         if updated_session.remember_device:
             access_delta = timedelta(days=settings.REMEMBER_DEVICE_DAYS)
             expires_in_seconds = settings.REMEMBER_DEVICE_DAYS * 24 * 3600
@@ -131,7 +135,11 @@ class AuthService(BaseService):
             access_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
             expires_in_seconds = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
 
-        new_access_token = create_access_token(subject=user.id, expires_delta=access_delta)
+        new_access_token = create_access_token(
+            subject=user.id,
+            expires_delta=access_delta,
+            sid=updated_session.session_uuid,
+        )
 
         return TokenResponse(
             access_token=new_access_token,

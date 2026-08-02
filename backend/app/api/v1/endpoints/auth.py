@@ -1,10 +1,26 @@
+from typing import List, Optional
 from fastapi import APIRouter, Depends, Request, status
 from app.schemas.common import ApiResponse
-from app.schemas.auth import RegisterRequest, LoginRequest, RefreshTokenRequest, TokenResponse
+from app.schemas.auth import (
+    RegisterRequest,
+    LoginRequest,
+    RefreshTokenRequest,
+    TokenResponse,
+    SessionResponse,
+    RevokeSessionRequest,
+)
 from app.schemas.user import UserResponse
 from app.services.auth_service import AuthService
-from app.api.deps import get_auth_service, get_current_active_user
+from app.services.session_service import SessionService
+from app.api.deps import (
+    get_auth_service,
+    get_session_service,
+    get_current_active_user,
+    get_current_session,
+)
+from app.core.exceptions import NotFoundException
 from app.models.user import User
+from app.models.user_session import UserSession
 
 router = APIRouter()
 
@@ -100,4 +116,100 @@ async def get_current_user_profile(
     return ApiResponse(
         success=True,
         data=UserResponse.model_validate(current_user),
+    )
+
+
+@router.get(
+    "/session",
+    response_model=ApiResponse[SessionResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get Active Session Details",
+)
+async def get_current_session_details(
+    current_user: User = Depends(get_current_active_user),
+    current_session: Optional[UserSession] = Depends(get_current_session),
+    session_service: SessionService = Depends(get_session_service),
+):
+    """Returns exact session metadata bound to the requesting JWT (sid claim)."""
+    target_session = current_session
+    if not target_session:
+        sessions = await session_service.get_active_sessions_for_user(current_user.id)
+        if not sessions:
+            raise NotFoundException(detail="No active session found for user.")
+        target_session = sessions[0]
+
+    res_data = SessionResponse.model_validate(target_session)
+    res_data.current_session = True
+    return ApiResponse(
+        success=True,
+        data=res_data,
+    )
+
+
+@router.get(
+    "/sessions",
+    response_model=ApiResponse[List[SessionResponse]],
+    status_code=status.HTTP_200_OK,
+    summary="List All Active Sessions",
+)
+async def list_active_sessions(
+    current_user: User = Depends(get_current_active_user),
+    current_session: Optional[UserSession] = Depends(get_current_session),
+    session_service: SessionService = Depends(get_session_service),
+):
+    """Lists all active sessions belonging to current user, marking current_session=True for the requesting session."""
+    sessions = await session_service.get_active_sessions_for_user(current_user.id)
+    res_list = []
+    current_uuid = current_session.session_uuid if current_session else (sessions[0].session_uuid if sessions else None)
+    for s in sessions:
+        item = SessionResponse.model_validate(s)
+        if current_uuid and s.session_uuid == current_uuid:
+            item.current_session = True
+        res_list.append(item)
+
+    return ApiResponse(
+        success=True,
+        data=res_list,
+    )
+
+
+@router.post(
+    "/revoke-session",
+    response_model=ApiResponse[dict],
+    status_code=status.HTTP_200_OK,
+    summary="Revoke Specific Session",
+)
+async def revoke_session(
+    payload: RevokeSessionRequest,
+    current_user: User = Depends(get_current_active_user),
+    session_service: SessionService = Depends(get_session_service),
+):
+    """Revokes a specific session belonging to the authenticated user."""
+    await session_service.revoke_user_session(
+        current_user_id=current_user.id,
+        session_uuid=payload.session_uuid,
+    )
+    return ApiResponse(
+        success=True,
+        data={"message": f"Session '{payload.session_uuid}' revoked successfully."},
+    )
+
+
+@router.post(
+    "/revoke-all",
+    response_model=ApiResponse[dict],
+    status_code=status.HTTP_200_OK,
+    summary="Revoke All Sessions for User",
+)
+async def revoke_all_sessions(
+    current_user: User = Depends(get_current_active_user),
+    session_service: SessionService = Depends(get_session_service),
+):
+    """Revokes all active sessions for the current authenticated user across devices."""
+    count = await session_service.revoke_all_sessions(
+        user_id=current_user.id, reason="REVOKE_ALL_SESSIONS"
+    )
+    return ApiResponse(
+        success=True,
+        data={"message": f"Revoked {count} active sessions successfully."},
     )

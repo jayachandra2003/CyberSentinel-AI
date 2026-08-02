@@ -5,8 +5,12 @@ from app.core.config import settings
 from app.core.exceptions import UnauthorizedException
 
 
-def create_access_token(subject: str | int, expires_delta: Optional[timedelta] = None) -> str:
-    """Creates a signed JWT Access Token."""
+def create_access_token(
+    subject: str | int,
+    expires_delta: Optional[timedelta] = None,
+    sid: Optional[str] = None,
+) -> str:
+    """Creates a signed JWT Access Token with optional session binding claim (sid)."""
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
@@ -18,6 +22,9 @@ def create_access_token(subject: str | int, expires_delta: Optional[timedelta] =
         "type": "access",
         "iat": datetime.now(timezone.utc),
     }
+    if sid is not None:
+        to_encode["sid"] = sid
+
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 

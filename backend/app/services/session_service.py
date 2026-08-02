@@ -3,6 +3,7 @@ from typing import Optional, List, Tuple
 from app.repositories.session_repository import SessionRepository
 from app.services.base_service import BaseService
 from app.models.user_session import UserSession
+from app.core.exceptions import NotFoundException, ForbiddenException
 from app.security.session_security import (
     generate_session_uuid,
     generate_refresh_token,
@@ -126,6 +127,36 @@ class SessionService(BaseService):
 
         return await self.expire_session_if_needed(session_record)
 
+    async def get_active_sessions_for_user(self, user_id: int) -> List[UserSession]:
+        """Returns all active sessions for a user ordered newest first."""
+        return await self.session_repo.get_all_active_by_user(user_id)
+
+    async def revoke_user_session(
+        self, current_user_id: int, session_uuid: str
+    ) -> UserSession:
+        """Revokes a session belonging to current_user_id after validating ownership.
+
+        Args:
+            current_user_id (int): ID of the authenticated user requesting revocation.
+            session_uuid (str): UUID of the session to revoke.
+
+        Returns:
+            UserSession: The revoked UserSession instance.
+
+        Raises:
+            NotFoundException: If the session_uuid does not exist.
+            ForbiddenException: If the session belongs to a different user.
+        """
+        session = await self.get_session_by_uuid(session_uuid)
+        if not session:
+            raise NotFoundException(detail="Target session not found.")
+
+        if session.user_id != current_user_id:
+            raise ForbiddenException(detail="You cannot revoke another user's session.")
+
+        revoked_session = await self.revoke_session(session_uuid, reason="USER_REVOKED")
+        return revoked_session or session
+
     async def update_last_activity(self, session_uuid: str) -> Optional[UserSession]:
         """Updates only the last_activity timestamp using touch_session_time()."""
         session_record = await self.session_repo.get_by_uuid(session_uuid)
@@ -138,7 +169,7 @@ class SessionService(BaseService):
         self, session_uuid: str, new_refresh_token_hash: Optional[str] = None
     ) -> Optional[UserSession]:
         """Updates last_refresh_at timestamp and optionally updates refresh token hash during rotation."""
-        session_record = await self.session_record.get_by_uuid(session_uuid)
+        session_record = await self.session_repo.get_by_uuid(session_uuid)
         if session_record and session_record.is_active:
             now = touch_session_time()
             session_record.last_refresh_at = now
