@@ -180,7 +180,7 @@ class SessionService(BaseService):
         return session_record
 
     async def revoke_session(
-        self, session_uuid: str, reason: str = "MANUAL_LOGOUT"
+        self, session_uuid: str, reason: str = "LOGOUT"
     ) -> Optional[UserSession]:
         """Revokes a specific active session."""
         return await self.session_repo.revoke_session(session_uuid, reason=reason)

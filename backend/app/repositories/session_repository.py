@@ -82,7 +82,7 @@ class SessionRepository(BaseRepository[UserSession]):
         return list(result.scalars().all())
 
     async def revoke_session(
-        self, session_uuid: str, reason: str = "MANUAL_LOGOUT"
+        self, session_uuid: str, reason: str = "LOGOUT"
     ) -> Optional[UserSession]:
         """Revokes a session by setting is_active=False and timestamping revoked_at."""
         stmt = select(UserSession).where(UserSession.session_uuid == session_uuid)

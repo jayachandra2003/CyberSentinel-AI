@@ -68,6 +68,7 @@ def get_auth_service(
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
     user_service: UserService = Depends(get_user_service),
+    session_service: SessionService = Depends(get_session_service),
 ) -> User:
     if not credentials or not credentials.credentials:
         raise UnauthorizedException(detail="Authentication token missing.")
@@ -84,6 +85,12 @@ async def get_current_user(
     user = await user_service.get_user_by_id(int(user_id_str))
     if not user:
         raise UnauthorizedException(detail="User not found.")
+
+    sid = payload.get("sid")
+    if sid:
+        session = await session_service.get_active_session(sid)
+        if not session or session.user_id != user.id:
+            raise UnauthorizedException(detail="Could not validate credentials or token expired.")
 
     return user
 
@@ -111,6 +118,11 @@ async def get_current_session(
             session = await session_service.get_active_session(sid)
             if session and session.user_id == current_user.id:
                 return session
+        
+        # Fallback for tokens without sid claim
+        active_sessions = await session_service.get_active_sessions_for_user(current_user.id)
+        if active_sessions:
+            return active_sessions[0]
     except Exception:
         return None
     return None

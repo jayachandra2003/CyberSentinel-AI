@@ -1,21 +1,9 @@
 """
-Scan Orchestrator — Phase 3.2.1 update.
+Scan Orchestrator — Defensive Scanner Pipeline.
 
-Changes from the previous version:
-1. DNSScanner is registered at startup time (no manual registration required
-   in calling code).
-2. Module results are collected per-call and immediately persisted via
-   ScanRepository.update_module_results().
-3. The final summary string lists which modules succeeded and which failed.
-4. Progress steps are re-distributed to allocate more time for real I/O:
-     0%  → Pending/Queued marker
-    10%  → Running initialised
-    40%  → After DNS (the first real module)
-   100%  → Completed
-   (Additional modules will fill the gaps between 40%–100% when added.)
-
-The pipeline never raises externally — every exception is caught and logged
-so background tasks cannot silently kill the event loop.
+Manages sequential execution and progress updates across registered IScannerModule instances.
+Module results are collected per-call and immediately persisted via ScanRepository.update_module_results().
+The pipeline never raises externally — every exception is caught and logged so background tasks cannot silently kill the event loop.
 """
 from __future__ import annotations
 
@@ -29,6 +17,7 @@ from app.repositories.scan_repository import ScanRepository
 from app.scanner.interfaces.module_interface import IScannerModule
 from app.scanner.modules.dns import DNSScanner
 from app.scanner.modules.whois import WHOISScanner
+from app.scanner.modules.ssl import SSLScanner
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +26,7 @@ class ScanOrchestrator:
     """
     Manages workflow orchestration across registered IScannerModule instances.
 
-    Modules are registered once at class-instantiation time.  Any code that
+    Modules are registered once at class-instantiation time. Any code that
     holds a reference to an orchestrator instance (e.g. the scans endpoint)
     does NOT need to call register_module() — all production modules are
     already wired up in __init__.
@@ -52,8 +41,7 @@ class ScanOrchestrator:
             self.modules = [
                 DNSScanner(),
                 WHOISScanner(),
-                # SSLScanner(),    # Phase 3.3
-                # HeadersScanner(),# Phase 3.5
+                SSLScanner(),
             ]
 
     def register_module(self, module: IScannerModule) -> None:
@@ -136,12 +124,6 @@ class ScanOrchestrator:
             )
 
             # ── 3. Execute modules ─────────────────────────────────────
-            #
-            # Each module runs sequentially so that future modules can consume
-            # the results of earlier ones (e.g. an SSL module can use the IP
-            # addresses resolved by the DNS module).
-            #
-            # Progress is distributed evenly across the 5% → 90% range.
             n = len(self.modules)
             progress_per_module = int(85 / n) if n > 0 else 85
 
@@ -206,7 +188,6 @@ class ScanOrchestrator:
             )
 
         except Exception as exc:
-            # Catch-all — mark the scan as Failed rather than leaving it Running
             logger.error(
                 "Scan pipeline %d encountered unhandled exception: %s",
                 scan_id, exc,

@@ -153,11 +153,18 @@ class AuthService(BaseService):
         """Legacy compatibility wrapper calling refresh_access_token."""
         return await self.refresh_access_token(refresh_token)
 
-    async def logout_user(self, user_id: int, ip_address: Optional[str] = None) -> None:
+    async def logout_user(
+        self, user_id: int, session_uuid: Optional[str] = None, ip_address: Optional[str] = None
+    ) -> None:
+        """Revokes active user session and records a logout audit trail event."""
+        if session_uuid:
+            await self.session_service.revoke_session(session_uuid, reason="LOGOUT")
+
         await self.audit_service.log_event(
             action="USER_LOGOUT",
             resource=f"user:{user_id}",
             user_id=user_id,
             status="SUCCESS",
             ip_address=ip_address,
+            details_json=f'{{"session_uuid": "{session_uuid or ""}"}}',
         )

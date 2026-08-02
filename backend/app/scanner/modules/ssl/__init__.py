@@ -1,5 +1,10 @@
-"""
-SSL Defensive Assessment Module Placeholder.
-Contract interface for future SSL certificate security verification.
-No scanning logic implemented.
-"""
+from app.scanner.modules.ssl.ssl_models import SslCertificateInfo, SslObservation, SslProtocolInfo, SslScanResult
+from app.scanner.modules.ssl.ssl_scanner import SSLScanner
+
+__all__ = [
+    "SSLScanner",
+    "SslScanResult",
+    "SslCertificateInfo",
+    "SslProtocolInfo",
+    "SslObservation",
+]

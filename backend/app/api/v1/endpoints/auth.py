@@ -92,11 +92,13 @@ async def refresh(
 async def logout(
     request: Request,
     current_user: User = Depends(get_current_active_user),
+    current_session: Optional[UserSession] = Depends(get_current_session),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    """Logs out user session and records an audit trail event."""
+    """Logs out user session, revokes active device session, and records an audit trail event."""
     client_ip = request.client.host if request.client else None
-    await auth_service.logout_user(current_user.id, ip_address=client_ip)
+    session_uuid = current_session.session_uuid if current_session else None
+    await auth_service.logout_user(current_user.id, session_uuid=session_uuid, ip_address=client_ip)
     return ApiResponse(
         success=True,
         data={"message": "Logged out successfully."},
