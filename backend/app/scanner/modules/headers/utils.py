@@ -45,7 +45,6 @@ async def fetch_headers_async(domain: str, timeout: float = 5.0) -> Dict[str, An
             follow_redirects=True,
             max_redirects=5,
             timeout=client_timeout,
-            verify=False,  # Defensive inspection mode: proceed even if self-signed
         ) as client:
             resp = await client.get(https_url, headers=headers_to_send)
             raw = {k.lower(): str(v) for k, v in resp.headers.items()}
