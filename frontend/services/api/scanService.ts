@@ -89,6 +89,53 @@ export interface WhoisScanResult {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// SSL result types (mirror backend ssl_models.py)
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface SslCertificateInfo {
+  subject_cn?: string | null;
+  issuer_cn?: string | null;
+  issuer_organization?: string | null;
+  serial_number?: string | null;
+  version?: number | null;
+  signature_algorithm?: string | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  days_until_expiration?: number | null;
+  is_expired: boolean;
+  is_self_signed: boolean;
+  subject_alternative_names: string[];
+}
+
+export interface SslProtocolInfo {
+  protocol_version?: string | null;
+  cipher_name?: string | null;
+  cipher_version?: string | null;
+  cipher_bits?: number | null;
+  handshake_time_ms?: number | null;
+}
+
+export interface SslObservationItem {
+  code: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  title: string;
+  description: string;
+}
+
+export interface SslScanResult {
+  module_id: "ssl";
+  status: string;
+  target: string;
+  is_valid: boolean;
+  error_message?: string | null;
+  certificate?: SslCertificateInfo | null;
+  protocol?: SslProtocolInfo | null;
+  risk_score: number;
+  risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  security_observations: SslObservationItem[];
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Scan types
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -97,6 +144,7 @@ export type ScanStatus = "Pending" | "Queued" | "Running" | "Completed" | "Faile
 export interface ModuleResults {
   dns?: DnsScanResult;
   whois?: WhoisScanResult;
+  ssl?: SslScanResult;
   [key: string]: unknown;
 }
 

@@ -1,13 +1,13 @@
 "use client";
 
 import React from "react";
-import { Globe, ShieldCheck, Database, AlertTriangle, Code2, Award, Cpu, Calendar, FileText } from "lucide-react";
+import { Globe, ShieldCheck, Database, AlertTriangle, Code2, Award, Cpu, Calendar, FileText, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Scan } from "@/services/api/scanService";
 import { calculateSecurityMetrics } from "./reportUtils";
 import { cn } from "@/lib/utils";
 
-export type ReportTab = "overview" | "dns" | "whois" | "security" | "json";
+export type ReportTab = "overview" | "dns" | "whois" | "ssl" | "security" | "json";
 
 interface ReportHeaderProps {
   scan: Scan;
@@ -15,6 +15,7 @@ interface ReportHeaderProps {
   setActiveTab: (tab: ReportTab) => void;
   dnsRecordCount: number;
   whoisRecordCount?: number;
+  sslObsCount?: number;
   securityObsCount: number;
 }
 
@@ -24,6 +25,7 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
   setActiveTab,
   dnsRecordCount,
   whoisRecordCount = 0,
+  sslObsCount = 0,
   securityObsCount,
 }) => {
   const metrics = calculateSecurityMetrics(scan);
@@ -64,23 +66,23 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
     { id: "overview", label: "Overview", icon: <ShieldCheck className="h-4 w-4" /> },
     { id: "dns", label: "DNS Records", icon: <Database className="h-4 w-4" />, badge: dnsRecordCount },
     { id: "whois", label: "WHOIS", icon: <FileText className="h-4 w-4" />, badge: whoisRecordCount },
+    { id: "ssl", label: "SSL / TLS", icon: <Lock className="h-4 w-4" />, badge: sslObsCount },
     { id: "security", label: "Security & Risk", icon: <AlertTriangle className="h-4 w-4" />, badge: securityObsCount },
     { id: "json", label: "Raw JSON", icon: <Code2 className="h-4 w-4" /> },
   ];
 
   return (
     <div className="space-y-3 flex-shrink-0">
-      {/* Top Metadata Header — 28px Main Domain Title & 28-30px KPI Value */}
+      {/* Top Metadata Header */}
       <div className="p-3.5 px-4 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-900/60 backdrop-blur-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Left: Target Domain (28px Main Report Title) & Metadata */}
+          {/* Left: Target Domain & Metadata */}
           <div className="flex items-center gap-3 flex-wrap">
             <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex-shrink-0">
               <Globe className="h-5 w-5" />
             </div>
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
-                {/* Main Report Title 28px */}
                 <h2 className="text-xl sm:text-2xl md:text-[28px] font-bold font-mono text-slate-900 dark:text-white tracking-tight leading-none">
                   {scan.target_domain}
                 </h2>
@@ -91,7 +93,7 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
                 {getRiskBadge(metrics.riskLevel)}
               </div>
 
-              {/* Metadata Row (13px Regular) */}
+              {/* Metadata Row */}
               <div className="flex items-center gap-3 text-[13px] text-slate-500 dark:text-slate-400 font-normal mt-1 flex-wrap">
                 <span className="flex items-center gap-1.5">
                   <Cpu className="h-3.5 w-3.5 text-cyan-500" />
@@ -106,9 +108,8 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
             </div>
           </div>
 
-          {/* Right: Security Score (28-30px Semibold KPI) & Inline Stats */}
+          {/* Right: Security Score & Inline Stats */}
           <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
-            {/* Security Score KPI (28-30px Semibold) */}
             <div className="p-2 px-3.5 rounded-xl border border-cyan-500/20 bg-cyan-500/5 flex items-center gap-3 flex-shrink-0">
               <Award className="h-6 w-6 text-cyan-400 flex-shrink-0" />
               <div>
@@ -121,7 +122,6 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
               </div>
             </div>
 
-            {/* Timestamps & Duration (13-14px Regular) */}
             <div className="hidden sm:grid grid-cols-3 gap-2 text-[13px]">
               <div className="p-1.5 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-950/40">
                 <div className="text-[11px] text-slate-400 font-medium">Scan Type</div>
@@ -148,7 +148,7 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
         </div>
       </div>
 
-      {/* Navigation Tabs Bar (14px Medium Weight) */}
+      {/* Navigation Tabs Bar */}
       <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto scrollbar-none pb-px">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;

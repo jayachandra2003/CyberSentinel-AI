@@ -1,6 +1,6 @@
-import { Scan, DnsScanResult, WhoisScanResult } from "@/services/api/scanService";
+import { Scan, DnsScanResult, WhoisScanResult, SslScanResult } from "@/services/api/scanService";
 
-export type UnifiedModule = "DNS" | "WHOIS";
+export type UnifiedModule = "DNS" | "WHOIS" | "SSL";
 export type SeverityLevel = "CRITICAL" | "HIGH" | "MEDIUM" | "WARNING" | "INFO";
 
 export interface FindingItem {
@@ -39,6 +39,7 @@ const PATTERNS: { severity: SeverityLevel; regexes: RegExp[] }[] = [
       /dnssec.*validation failed/i,
       /critical misconfiguration/i,
       /domain expired/i,
+      /certificate expired/i,
     ],
   },
   {
@@ -51,6 +52,9 @@ const PATTERNS: { severity: SeverityLevel; regexes: RegExp[] }[] = [
       /xss/i,
       /domain status hold/i,
       /registered < 7 days/i,
+      /weak signature algorithm/i,
+      /self-signed certificate/i,
+      /weak tls protocol/i,
     ],
   },
   {
@@ -64,6 +68,7 @@ const PATTERNS: { severity: SeverityLevel; regexes: RegExp[] }[] = [
       /expires soon/i,
       /recently registered/i,
       /connection timeout/i,
+      /certificate expiring soon/i,
     ],
   },
   {
@@ -91,6 +96,8 @@ const PATTERNS: { severity: SeverityLevel; regexes: RegExp[] }[] = [
       /redundant/i,
       /long-lived/i,
       /privacy protection/i,
+      /ssl\/tls posture healthy/i,
+      /valid ssl certificate/i,
     ],
   },
 ];
@@ -134,7 +141,10 @@ export function deriveRecommendation(text: string, severity: SeverityLevel): str
     return "Ensure at least 2 geographically distributed, redundant nameservers are configured for high availability and fault tolerance.";
   }
   if (lower.includes("expired") || lower.includes("expires")) {
-    return "Ensure domain registration auto-renewal is enabled at your registrar to prevent unplanned service expiration.";
+    return "Ensure domain registration auto-renewal and SSL certificate lifecycle renewal automation is enabled to prevent unplanned service outage.";
+  }
+  if (lower.includes("tls") || lower.includes("cipher") || lower.includes("ssl")) {
+    return "Enforce modern TLS 1.2+ protocols, strong AEAD cipher suites (e.g., AES-GCM or ChaCha20-Poly1305), and ensure valid CA chain trust.";
   }
   if (severity === "CRITICAL" || severity === "HIGH") {
     return "Immediate remediation required. Review infrastructure configuration to eliminate high-risk vulnerabilities.";
@@ -190,6 +200,28 @@ export function extractReportFindings(scan?: Scan | null): FindingItem[] {
     });
   }
 
+  // 3. SSL Module Findings
+  const ssl = scan.module_results.ssl as SslScanResult | undefined;
+  if (ssl && Array.isArray(ssl.security_observations)) {
+    ssl.security_observations.forEach((obs, idx) => {
+      if (obs && typeof obs === "object") {
+        const title = obs.title || "SSL Security Observation";
+        const description = obs.description || title;
+        const severity = normalizeSeverity(obs.severity);
+        const recommendation = deriveRecommendation(description, severity);
+
+        findings.push({
+          id: `ssl-obs-${idx}`,
+          module: "SSL",
+          severity,
+          title,
+          description,
+          recommendation,
+        });
+      }
+    });
+  }
+
   return findings;
 }
 
@@ -198,7 +230,7 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
     score: 100,
     riskLevel: "LOW",
     modulesPassed: 0,
-    totalModules: 2,
+    totalModules: 3,
     findingsCount: { critical: 0, high: 0, medium: 0, warning: 0, info: 0, total: 0 },
     duration: null,
   };
@@ -243,11 +275,19 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
   score -= medium * 10;
   score -= warning * 5;
 
-  // Integrate WHOIS score if present
+  // Integrate WHOIS & SSL module risk scores if present
   const whois = scan.module_results?.whois as WhoisScanResult | undefined;
+  const ssl = scan.module_results?.ssl as SslScanResult | undefined;
+
+  let componentScores = [score];
   if (whois && typeof whois.whois_score === "number") {
-    score = Math.round((score + whois.whois_score) / 2);
+    componentScores.push(whois.whois_score);
   }
+  if (ssl && typeof ssl.risk_score === "number") {
+    componentScores.push(100 - ssl.risk_score);
+  }
+
+  score = Math.round(componentScores.reduce((a, b) => a + b, 0) / componentScores.length);
 
   if (score < 0) score = 0;
   if (score > 100) score = 100;
@@ -261,10 +301,11 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
     riskLevel = "MEDIUM";
   }
 
-  // Count executed modules safely
+  // Count executed modules dynamically
   const hasDns = Boolean(scan.module_results?.dns);
   const hasWhois = Boolean(scan.module_results?.whois);
-  
+  const hasSsl = Boolean(scan.module_results?.ssl);
+
   let totalModules = 0;
   let modulesPassed = 0;
 
@@ -284,8 +325,16 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
     }
   }
 
+  if (hasSsl) {
+    totalModules += 1;
+    const sslStatus = (scan.module_results?.ssl as SslScanResult)?.status;
+    if (sslStatus === "completed") {
+      modulesPassed += 1;
+    }
+  }
+
   if (totalModules === 0) {
-    totalModules = 2; // Default planned Phase 3 modules
+    totalModules = 3;
   }
 
   return {

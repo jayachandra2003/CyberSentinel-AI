@@ -2,14 +2,15 @@
 
 import React, { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { Scan, DnsScanResult, WhoisScanResult } from "@/services/api/scanService";
+import { Scan, DnsScanResult, WhoisScanResult, SslScanResult } from "@/services/api/scanService";
 import { ReportHeader, ReportTab } from "./report/ReportHeader";
 import { OverviewTab } from "./report/OverviewTab";
 import { DnsTab } from "./report/DnsTab";
 import { WhoisTab } from "./report/WhoisTab";
+import { SslTab } from "./report/SslTab";
 import { SecurityTab } from "./report/SecurityTab";
 import { RawJsonTab } from "./report/RawJsonTab";
-import { Database, FileText } from "lucide-react";
+import { Database, FileText, Lock } from "lucide-react";
 
 interface ScanDetailModalProps {
   scan: Scan | null;
@@ -34,7 +35,11 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
   const hasWhois = Boolean(whois && (whois.status === "completed" || whois.domain || whois.registrar));
   const whoisObsCount = whois?.security_observations?.length ?? 0;
 
-  const totalObsCount = (dns?.security_observations?.length ?? 0) + whoisObsCount;
+  const ssl = scan.module_results?.ssl as SslScanResult | undefined;
+  const hasSsl = Boolean(ssl && (ssl.status === "completed" || ssl.certificate || ssl.protocol));
+  const sslObsCount = ssl?.security_observations?.length ?? 0;
+
+  const totalObsCount = (dns?.security_observations?.length ?? 0) + whoisObsCount + sslObsCount;
 
   return (
     <Modal
@@ -51,12 +56,20 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
           setActiveTab={setActiveTab}
           dnsRecordCount={dnsRecordCount}
           whoisRecordCount={whoisObsCount}
+          sslObsCount={sslObsCount}
           securityObsCount={totalObsCount}
         />
 
         {/* Tab Content Container */}
         <div className="flex-1 overflow-y-auto min-h-0 pr-1 space-y-4 scrollbar-thin">
-          {activeTab === "overview" && <OverviewTab scan={scan} dns={hasDns ? dns : undefined} whois={hasWhois ? whois : undefined} />}
+          {activeTab === "overview" && (
+            <OverviewTab
+              scan={scan}
+              dns={hasDns ? dns : undefined}
+              whois={hasWhois ? whois : undefined}
+              ssl={hasSsl ? ssl : undefined}
+            />
+          )}
 
           {activeTab === "dns" && (
             hasDns ? (
@@ -85,6 +98,22 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
                   scan.status === "Completed"
                     ? "WHOIS query did not return domain registration data for this target."
                     : "WHOIS intelligence module is currently querying TLD registrars. Results will populate upon completion."
+                }
+              />
+            )
+          )}
+
+          {activeTab === "ssl" && (
+            hasSsl ? (
+              <SslTab ssl={ssl!} />
+            ) : (
+              <EmptyStatePlaceholder
+                icon={<Lock className="h-8 w-8 text-slate-500 mx-auto" />}
+                title="SSL / TLS Analysis Unavailable"
+                description={
+                  scan.status === "Completed"
+                    ? "No SSL certificate or handshake data was returned during this scan."
+                    : "SSL/TLS security analysis module is currently executing. Results will populate upon completion."
                 }
               />
             )
