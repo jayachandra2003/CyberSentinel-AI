@@ -38,6 +38,9 @@ import { scanService, Scan } from "@/services/api/scanService";
 import { NewScanModal } from "@/components/scans/NewScanModal";
 import { ScanDetailModal } from "@/components/scans/ScanDetailModal";
 
+import { ScanComparisonModal } from "@/components/scans/report/ScanComparisonModal";
+import { GitCompare } from "lucide-react";
+
 const chartData = [
   { name: "Mon", score: 82, findings: 4 },
   { name: "Tue", score: 85, findings: 3 },
@@ -54,6 +57,7 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
 
   const [isNewScanOpen, setIsNewScanOpen] = useState(false);
+  const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -134,6 +138,10 @@ export default function DashboardPage() {
                     {activeScansCount} Active Pipeline Task{activeScansCount > 1 ? "s" : ""}
                   </Badge>
                 )}
+                <Button variant="secondary" size="sm" onClick={() => setIsCompareOpen(true)}>
+                  <GitCompare className="h-4 w-4 mr-1 text-cyan-400" />
+                  Compare Scans
+                </Button>
                 <Button variant="primary" size="sm" onClick={() => setIsNewScanOpen(true)}>
                   <Plus className="h-4 w-4 mr-1" />
                   New Scan
@@ -385,6 +393,13 @@ export default function DashboardPage() {
             setIsDetailOpen(false);
             setSelectedScan(null);
           }}
+        />
+
+        {/* Scan Comparison Modal */}
+        <ScanComparisonModal
+          scans={scans}
+          isOpen={isCompareOpen}
+          onClose={() => setIsCompareOpen(false)}
         />
       </div>
     </RouteGuard>

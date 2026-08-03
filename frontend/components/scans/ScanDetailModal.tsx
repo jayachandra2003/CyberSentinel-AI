@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { Scan, DnsScanResult, WhoisScanResult, SslScanResult, HeadersScanResult, CookieScanResult } from "@/services/api/scanService";
+import { Scan, DnsScanResult, WhoisScanResult, SslScanResult, HeadersScanResult, CookieScanResult, TechScanResult } from "@/services/api/scanService";
 import { ReportHeader, ReportTab } from "./report/ReportHeader";
 import { OverviewTab } from "./report/OverviewTab";
 import { DnsTab } from "./report/DnsTab";
@@ -10,9 +10,10 @@ import { WhoisTab } from "./report/WhoisTab";
 import { SslTab } from "./report/SslTab";
 import { HeadersTab } from "./report/HeadersTab";
 import { CookiesTab } from "./report/CookiesTab";
+import { TechTab } from "./report/TechTab";
 import { SecurityTab } from "./report/SecurityTab";
 import { RawJsonTab } from "./report/RawJsonTab";
-import { Database, FileText, Lock, Shield, Cookie } from "lucide-react";
+import { Database, FileText, Lock, Shield, Cookie, Cpu } from "lucide-react";
 
 interface ScanDetailModalProps {
   scan: Scan | null;
@@ -49,6 +50,10 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
   const hasCookies = Boolean(cookiesModule && (cookiesModule.status === "completed" || cookiesModule.cookies_count >= 0));
   const cookiesObsCount = cookiesModule?.security_observations?.length ?? 0;
 
+  const techModule = scan.module_results?.tech as TechScanResult | undefined;
+  const hasTech = Boolean(techModule && (techModule.status === "completed" || techModule.tech_count >= 0));
+  const techObsCount = techModule?.security_observations?.length ?? 0;
+
   const totalObsCount =
     (dns?.security_observations?.length ?? 0) +
     whoisObsCount +
@@ -74,6 +79,7 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
           sslObsCount={sslObsCount}
           headersObsCount={headersObsCount}
           cookiesObsCount={cookiesObsCount}
+          techObsCount={techObsCount}
           securityObsCount={totalObsCount}
         />
 
@@ -87,6 +93,7 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
               ssl={hasSsl ? ssl : undefined}
               headersModule={hasHeaders ? headersModule : undefined}
               cookiesModule={hasCookies ? cookiesModule : undefined}
+              techModule={hasTech ? techModule : undefined}
             />
           )}
 
@@ -165,6 +172,22 @@ export const ScanDetailModal: React.FC<ScanDetailModalProps> = ({
                   scan.status === "Completed"
                     ? "No Set-Cookie response headers were captured during this scan."
                     : "Cookie Security Analysis module is currently inspecting target response headers. Results will populate upon completion."
+                }
+              />
+            )
+          )}
+
+          {activeTab === "tech" && (
+            hasTech ? (
+              <TechTab tech={techModule!} />
+            ) : (
+              <EmptyStatePlaceholder
+                icon={<Cpu className="h-8 w-8 text-slate-500 mx-auto" />}
+                title="Technology Stack Fingerprinting Unavailable"
+                description={
+                  scan.status === "Completed"
+                    ? "No technology signatures were detected during this scan."
+                    : "Technology Stack Fingerprinting module is currently analyzing target headers and DOM artifacts. Results will populate upon completion."
                 }
               />
             )

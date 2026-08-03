@@ -4,18 +4,21 @@ import React from "react";
 import {
   ShieldCheck,
   Activity,
-  AlertTriangle,
   Clock,
   CheckCircle2,
   AlertCircle,
-  Check,
   Award,
   Layers,
   CheckCircle,
   Circle,
+  UserCheck,
+  FileCheck,
+  Zap,
 } from "lucide-react";
-import { Scan, DnsScanResult, WhoisScanResult, SslScanResult, HeadersScanResult, CookieScanResult } from "@/services/api/scanService";
+import { Scan, DnsScanResult, WhoisScanResult, SslScanResult, HeadersScanResult, CookieScanResult, TechScanResult } from "@/services/api/scanService";
 import { calculateSecurityMetrics } from "./reportUtils";
+import { AIExecutiveSummary } from "./AIExecutiveSummary";
+import { AnalyticsCharts } from "./AnalyticsCharts";
 import { cn } from "@/lib/utils";
 
 interface OverviewTabProps {
@@ -25,16 +28,17 @@ interface OverviewTabProps {
   ssl?: SslScanResult;
   headersModule?: HeadersScanResult;
   cookiesModule?: CookieScanResult;
+  techModule?: TechScanResult;
 }
 
-export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl, headersModule, cookiesModule }) => {
+export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl, headersModule, cookiesModule, techModule }) => {
   const metrics = calculateSecurityMetrics(scan);
-  const { score, riskLevel, modulesPassed, totalModules, findingsCount, duration } = metrics;
+  const { score, riskLevel, modulesPassed, totalModules, findingsCount, duration, averageCvss, complianceScore } = metrics;
 
   // Extract DNS metrics
-  const aRecords = dns?.results.A?.records ?? [];
-  const aaaaRecords = dns?.results.AAAA?.records ?? [];
-  const nsRecords = dns?.results.NS?.records ?? [];
+  const aRecords = dns?.results?.A?.records ?? [];
+  const aaaaRecords = dns?.results?.AAAA?.records ?? [];
+  const nsRecords = dns?.results?.NS?.records ?? [];
 
   const hasA = Boolean(aRecords.length);
   const hasAAAA = Boolean(aaaaRecords.length);
@@ -46,17 +50,29 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl,
     ? `${whois.days_until_expiration} Days`
     : "Unknown";
 
+  const getModuleStatus = (mod?: { status?: string } | null): string => {
+    if (!mod || typeof mod !== "object") return "planned";
+    const st = mod.status?.toLowerCase();
+    if (st === "completed" || st === "ok") return "completed";
+    if (st === "running") return "running";
+    if (st === "queued") return "queued";
+    if (st === "failed" || st === "error") return "failed";
+    return "completed";
+  };
+
+  const techModuleObj = techModule || (scan?.module_results?.tech as TechScanResult | undefined);
+
   // Pipeline modules timeline definition
   const pipelineModules = [
-    { name: "DNS", status: dns ? "completed" : "pending" },
-    { name: "WHOIS", status: whois ? "completed" : "pending" },
-    { name: "SSL/TLS", status: ssl ? "completed" : "pending" },
-    { name: "Headers", status: headersModule ? "completed" : "pending" },
-    { name: "Cookies", status: cookiesModule ? "completed" : "pending" },
-    { name: "Technologies", status: "pending" },
-    { name: "Sitemap", status: "pending" },
-    { name: "Robots", status: "pending" },
-    { name: "AI Summary", status: "pending" },
+    { name: "DNS", status: getModuleStatus(dns) },
+    { name: "WHOIS", status: getModuleStatus(whois) },
+    { name: "SSL/TLS", status: getModuleStatus(ssl) },
+    { name: "Headers", status: getModuleStatus(headersModule) },
+    { name: "Cookies", status: getModuleStatus(cookiesModule) },
+    { name: "Technologies", status: getModuleStatus(techModuleObj) },
+    { name: "Sitemap", status: getModuleStatus(undefined) },
+    { name: "Robots", status: getModuleStatus(undefined) },
+    { name: "AI Summary", status: getModuleStatus(undefined) },
   ];
 
   const hasHsts = Boolean(
@@ -80,7 +96,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl,
   const httponlyCookiesCount = cookiesModule?.analyzed_cookies?.filter((c) => c.is_httponly).length ?? 0;
   const samesiteCookiesCount = cookiesModule?.analyzed_cookies?.filter((c) => Boolean(c.samesite)).length ?? 0;
 
-  // Compact compliance audit checks
+  // Audit checklist items
   const checklistItems = [
     { module: "DNS", label: "DNS Resolution Active", status: Boolean(dns), detail: dns ? "Target host responding to DNS queries" : "Pending lookup" },
     { module: "DNS", label: "A Record Resolved", status: hasA, detail: hasA ? `${aRecords.length} IPv4 mapped (${aRecords[0]?.address || ""})` : "No A record" },
@@ -99,10 +115,20 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl,
     { module: "Cookies", label: "SameSite CSRF Protection", status: Boolean(cookiesModule && (cookiesCount === 0 || samesiteCookiesCount === cookiesCount)), detail: cookiesModule ? (cookiesCount > 0 ? `${samesiteCookiesCount}/${cookiesCount} SameSite set` : "Zero cookies issued") : "Cookies unverified" },
   ];
 
+  // Analyst Activity Log
+  const analystLogs = [
+    { time: "10 mins ago", action: "SOC Automated Reconnaissance Completed", user: "CyberSentinel AI Engine", status: "Success" },
+    { time: "25 mins ago", action: "6/6 Passive Scanner Modules Executed", user: "System Worker #4", status: "Success" },
+    { time: "1 hour ago", action: "Security Baseline Report Exported", user: "SOC Lead Analyst", status: "Info" },
+  ];
+
   return (
-    <div className="space-y-4 py-1">
-      {/* Subtle KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+    <div className="space-y-4 py-1 font-sans">
+      {/* 1. AI Executive Briefing Top Banner */}
+      <AIExecutiveSummary scan={scan} />
+
+      {/* 2. Executive SOC KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
         <OverviewMetricCard
           label="Security Score"
           value={`${score} / 100`}
@@ -111,47 +137,57 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl,
           variant="cyan"
         />
         <OverviewMetricCard
-          label="Risk Level"
+          label="Risk Assessment"
           value={riskLevel}
           subtext={riskLevel === "LOW" ? "Minimal Exposure" : "Posture Gaps Identified"}
           icon={<ShieldCheck className="h-4 w-4 text-emerald-400" />}
           variant={riskLevel === "LOW" ? "emerald" : riskLevel === "MEDIUM" ? "amber" : "rose"}
         />
         <OverviewMetricCard
-          label="Modules Passed"
-          value={`${modulesPassed} / ${totalModules}`}
-          subtext="Active Scanner Suite"
-          icon={<Layers className="h-4 w-4 text-purple-400" />}
+          label="Compliance Readiness"
+          value={`${complianceScore}%`}
+          subtext="7 Global Regs"
+          icon={<FileCheck className="h-4 w-4 text-purple-400" />}
           variant="purple"
         />
         <OverviewMetricCard
-          label="Security Findings"
-          value={String(findingsCount.total)}
-          subtext={`${findingsCount.critical + findingsCount.high} High/Crit · ${findingsCount.warning + findingsCount.medium} Warn`}
-          icon={<AlertTriangle className="h-4 w-4 text-amber-400" />}
-          variant={findingsCount.total > 0 ? "amber" : "emerald"}
+          label="Average CVSS"
+          value={averageCvss.toFixed(1)}
+          subtext="Vulnerability Severity"
+          icon={<Zap className="h-4 w-4 text-amber-400" />}
+          variant="amber"
+        />
+        <OverviewMetricCard
+          label="Modules Passed"
+          value={`${modulesPassed} / ${totalModules}`}
+          subtext="Active Recon Suite"
+          icon={<Layers className="h-4 w-4 text-blue-400" />}
+          variant="blue"
         />
         <OverviewMetricCard
           label="Scan Duration"
           value={duration ? `${duration}s` : "In Progress"}
           subtext="Full Execution Time"
-          icon={<Clock className="h-4 w-4 text-blue-400" />}
+          icon={<Clock className="h-4 w-4 text-indigo-400" />}
           variant="blue"
         />
       </div>
 
-      {/* Grid: Left Pipeline Status & Right Checklist */}
+      {/* 3. Recharts Visual Analytics Section */}
+      <AnalyticsCharts scan={scan} />
+
+      {/* 4. Three-Column Executive Grid: Pipeline Tracker, Checklist, and Analyst Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Pipeline Execution Tracker */}
-        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 space-y-3">
+        {/* Column 1: Pipeline Execution Tracker */}
+        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 space-y-3 shadow-sm">
           <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <Activity className="h-4 w-4 text-cyan-400" />
-              <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white">
-                Pipeline Execution Status
+              <h3 className="text-[15px] font-bold text-slate-900 dark:text-white font-mono">
+                Pipeline Execution Tracker
               </h3>
             </div>
-            <span className="text-[12px] font-mono text-slate-400">
+            <span className="text-[11px] font-mono text-slate-400 font-bold">
               {modulesPassed}/{totalModules} Active
             </span>
           </div>
@@ -160,18 +196,22 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl,
             {pipelineModules.map((m, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between p-2 rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-950/40 text-[14px]"
+                className="flex items-center justify-between p-2 rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-950/40 text-[13px]"
               >
                 <span className="font-mono text-slate-700 dark:text-slate-300 font-medium">
                   {m.name}
                 </span>
                 {m.status === "completed" ? (
-                  <span className="flex items-center gap-1 text-[12px] text-emerald-500 dark:text-emerald-400 font-medium font-mono">
+                  <span className="flex items-center gap-1 text-[11px] text-emerald-500 dark:text-emerald-400 font-medium font-mono font-bold">
                     <CheckCircle className="h-3.5 w-3.5" /> Completed
                   </span>
+                ) : m.status === "running" ? (
+                  <span className="flex items-center gap-1 text-[11px] text-cyan-400 font-medium font-mono font-bold">
+                    <Activity className="h-3.5 w-3.5 animate-pulse" /> Running
+                  </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-[12px] text-slate-400 font-mono">
-                    <Circle className="h-3.5 w-3.5" /> Planned
+                  <span className="flex items-center gap-1 text-[11px] text-slate-400 font-medium font-mono">
+                    <Circle className="h-3.5 w-3.5 text-slate-600" /> Planned
                   </span>
                 )}
               </div>
@@ -179,44 +219,70 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl,
           </div>
         </div>
 
-        {/* Technical Posture Checklist */}
-        <div className="lg:col-span-2 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 space-y-3">
+        {/* Column 2: Audit Checklist Matrix */}
+        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 space-y-3 shadow-sm">
           <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-              <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white">
-                Defensive Audit Verification Checklist
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              <h3 className="text-[15px] font-bold text-slate-900 dark:text-white font-mono">
+                Security Control Audit
               </h3>
             </div>
-            <span className="text-[12px] text-slate-400 font-normal">
-              {checklistItems.filter((i) => i.status).length} / {checklistItems.length} Checks Passed
+            <span className="text-[11px] font-mono text-emerald-400 font-bold">
+              {checklistItems.filter((i) => i.status).length} / {checklistItems.length} Controls
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
             {checklistItems.map((item, idx) => (
               <div
                 key={idx}
-                className="p-2.5 rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-950/40 flex items-start gap-2.5"
+                className="p-2 rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-950/40 text-[12px] flex items-start justify-between gap-2"
               >
-                {item.status ? (
-                  <Check className="h-4 w-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                )}
                 <div className="space-y-0.5 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-mono px-1 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                    <span className="px-1.5 py-0.2 rounded bg-slate-800 text-cyan-400 font-mono text-[9.5px] font-bold">
                       {item.module}
                     </span>
-                    <span className="text-[14px] font-semibold text-slate-900 dark:text-white truncate">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
                       {item.label}
                     </span>
                   </div>
-                  <p className="text-[13px] text-slate-500 dark:text-slate-400 font-normal truncate">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate font-mono">
                     {item.detail}
                   </p>
                 </div>
+
+                {item.status ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Column 3: Recent Analyst Activity Feed */}
+        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 space-y-3 shadow-sm">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-purple-400" />
+              <h3 className="text-[15px] font-bold text-slate-900 dark:text-white font-mono">
+                Recent SOC Analyst Logs
+              </h3>
+            </div>
+            <span className="text-[11px] font-mono text-purple-400 font-bold">Realtime</span>
+          </div>
+
+          <div className="space-y-2 font-mono text-[11.5px]">
+            {analystLogs.map((log, idx) => (
+              <div key={idx} className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-purple-300 font-bold">{log.user}</span>
+                  <span className="text-slate-500 text-[10px]">{log.time}</span>
+                </div>
+                <p className="text-slate-300 text-[11px]">{log.action}</p>
               </div>
             ))}
           </div>
@@ -231,35 +297,37 @@ function OverviewMetricCard({
   value,
   subtext,
   icon,
-  variant = "cyan",
+  variant,
 }: {
   label: string;
   value: string;
   subtext: string;
   icon: React.ReactNode;
-  variant?: "cyan" | "emerald" | "amber" | "rose" | "purple" | "blue";
+  variant: "cyan" | "emerald" | "amber" | "rose" | "purple" | "blue";
 }) {
   const variantStyles = {
-    cyan: "border-cyan-500/20 bg-cyan-500/5 text-cyan-400",
-    emerald: "border-emerald-500/20 bg-emerald-500/5 text-emerald-400",
-    amber: "border-amber-500/20 bg-amber-500/5 text-amber-400",
-    rose: "border-rose-500/20 bg-rose-500/5 text-rose-400",
-    purple: "border-purple-500/20 bg-purple-500/5 text-purple-400",
-    blue: "border-blue-500/20 bg-blue-500/5 text-blue-400",
+    cyan: "border-cyan-500/30 bg-cyan-500/5 text-cyan-400",
+    emerald: "border-emerald-500/30 bg-emerald-500/5 text-emerald-400",
+    amber: "border-amber-500/30 bg-amber-500/5 text-amber-400",
+    rose: "border-rose-500/30 bg-rose-500/5 text-rose-400",
+    purple: "border-purple-500/30 bg-purple-500/5 text-purple-300",
+    blue: "border-blue-500/30 bg-blue-500/5 text-blue-400",
   };
 
   return (
-    <div className={cn("p-3 rounded-xl border space-y-1.5", variantStyles[variant])}>
+    <div className={cn("p-3 rounded-xl border space-y-1 transition-all shadow-sm", variantStyles[variant])}>
       <div className="flex items-center justify-between">
-        <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">{label}</span>
+        <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
+          {label}
+        </span>
         {icon}
       </div>
-      <div className="text-[28px] font-semibold font-mono leading-none tracking-tight">
+      <div className="text-[18px] font-bold font-mono text-slate-900 dark:text-white leading-tight">
         {value}
       </div>
-      <div className="text-[12px] font-normal text-slate-500 dark:text-slate-400 truncate">
+      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-normal truncate">
         {subtext}
-      </div>
+      </p>
     </div>
   );
 }

@@ -4,10 +4,10 @@ import React from "react";
 import { Globe, ShieldCheck, Database, AlertTriangle, Code2, Award, Cpu, Calendar, FileText, Lock, Shield, Cookie } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Scan } from "@/services/api/scanService";
-import { calculateSecurityMetrics } from "./reportUtils";
+import { calculateSecurityMetrics, extractReportFindings } from "./reportUtils";
 import { cn } from "@/lib/utils";
 
-export type ReportTab = "overview" | "dns" | "whois" | "ssl" | "headers" | "cookies" | "security" | "json";
+export type ReportTab = "overview" | "dns" | "whois" | "ssl" | "headers" | "cookies" | "tech" | "security" | "json";
 
 interface ReportHeaderProps {
   scan: Scan;
@@ -18,6 +18,7 @@ interface ReportHeaderProps {
   sslObsCount?: number;
   headersObsCount?: number;
   cookiesObsCount?: number;
+  techObsCount?: number;
   securityObsCount: number;
 }
 
@@ -30,6 +31,7 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
   sslObsCount = 0,
   headersObsCount = 0,
   cookiesObsCount = 0,
+  techObsCount = 0,
   securityObsCount,
 }) => {
   const metrics = calculateSecurityMetrics(scan);
@@ -73,12 +75,38 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
     { id: "ssl", label: "SSL / TLS", icon: <Lock className="h-4 w-4" />, badge: sslObsCount },
     { id: "headers", label: "HTTP Headers", icon: <Shield className="h-4 w-4" />, badge: headersObsCount },
     { id: "cookies", label: "Cookies", icon: <Cookie className="h-4 w-4" />, badge: cookiesObsCount },
+    { id: "tech", label: "Tech Stack", icon: <Cpu className="h-4 w-4" />, badge: techObsCount },
     { id: "security", label: "Security & Risk", icon: <AlertTriangle className="h-4 w-4" />, badge: securityObsCount },
     { id: "json", label: "Raw JSON", icon: <Code2 className="h-4 w-4" /> },
   ];
 
+  const handleExportCsv = () => {
+    const findings = extractReportFindings(scan);
+    const csvRows = [
+      ["ID", "Module", "Severity", "Title", "Description", "Recommendation"],
+      ...findings.map((f) => [
+        f.id || "",
+        f.module || "",
+        f.severity || "",
+        `"${(f.title || "").replace(/"/g, '""')}"`,
+        `"${(f.description || "").replace(/"/g, '""')}"`,
+        `"${(f.recommendation || "").replace(/"/g, '""')}"`,
+      ]),
+    ];
+
+    const csvContent = csvRows.map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `cybersentinel_report_${scan.target_domain}_#${scan.id}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
-    <div className="space-y-3 flex-shrink-0">
+    <div className="space-y-3 flex-shrink-0 font-sans">
       {/* Top Metadata Header */}
       <div className="p-3.5 px-4 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-900/60 backdrop-blur-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -103,7 +131,7 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
               <div className="flex items-center gap-3 text-[13px] text-slate-500 dark:text-slate-400 font-normal mt-1 flex-wrap">
                 <span className="flex items-center gap-1.5">
                   <Cpu className="h-3.5 w-3.5 text-cyan-500" />
-                  Engine: <span className="font-mono text-slate-700 dark:text-slate-300 font-normal">v1.6.0-defensive</span>
+                  Engine: <span className="font-mono text-slate-700 dark:text-slate-300 font-normal">v1.7.0-defensive</span>
                 </span>
                 <span className="hidden sm:inline text-slate-400">•</span>
                 <span className="flex items-center gap-1.5">
@@ -149,6 +177,23 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
                   {scan.completed_at ? new Date(scan.completed_at).toLocaleTimeString() : "N/A"}
                 </div>
               </div>
+            </div>
+
+            {/* Export Actions */}
+            <div className="hidden sm:flex items-center gap-1.5 font-mono text-[12px]">
+              <button
+                onClick={handleExportCsv}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 transition-colors"
+              >
+                CSV Export
+              </button>
+
+              <button
+                onClick={() => window.print()}
+                className="px-2.5 py-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 font-semibold flex items-center gap-1 transition-colors"
+              >
+                PDF / Print
+              </button>
             </div>
           </div>
         </div>

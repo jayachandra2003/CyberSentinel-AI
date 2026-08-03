@@ -226,6 +226,39 @@ export interface CookieScanResult {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Technology Stack result types (mirror backend tech_models.py)
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface DetectedTechnology {
+  name: string;
+  category: string;
+  category_label: string;
+  version?: string | null;
+  confidence: number;
+  evidence: string;
+  description: string;
+}
+
+export interface TechObservationItem {
+  code: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  title: string;
+  description: string;
+}
+
+export interface TechScanResult {
+  module_id: "tech";
+  status: string;
+  target: string;
+  effective_url?: string | null;
+  tech_count: number;
+  risk_score: number;
+  risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  detected_technologies: DetectedTechnology[];
+  security_observations: TechObservationItem[];
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Scan types
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -237,6 +270,7 @@ export interface ModuleResults {
   ssl?: SslScanResult;
   headers?: HeadersScanResult;
   cookies?: CookieScanResult;
+  tech?: TechScanResult;
   [key: string]: unknown;
 }
 

@@ -1,22 +1,76 @@
-import { Scan, DnsScanResult, WhoisScanResult, SslScanResult, HeadersScanResult, CookieScanResult } from "@/services/api/scanService";
+import { Scan, DnsScanResult, WhoisScanResult, SslScanResult, HeadersScanResult, CookieScanResult, TechScanResult } from "@/services/api/scanService";
 
 export type UnifiedModule = "DNS" | "WHOIS" | "SSL" | "Headers" | "Cookies";
 export type SeverityLevel = "CRITICAL" | "HIGH" | "MEDIUM" | "WARNING" | "INFO";
 
 export interface FindingItem {
   id: string;
-  module: UnifiedModule;
+  module: UnifiedModule | string;
   severity: SeverityLevel;
   title: string;
   description: string;
   recommendation: string;
+
+  // Enterprise Vulnerability Intelligence
+  cvss?: {
+    score: number;
+    rating: string;
+    vector: string;
+  };
+  cwe?: {
+    id: string;
+    name: string;
+  };
+  owasp?: {
+    id: string;
+    name: string;
+  };
+  mitre?: {
+    id: string;
+    name: string;
+  };
+  compliance?: {
+    nist?: string;
+    cis?: string;
+    pci?: string;
+    iso?: string;
+    asvs?: string;
+  };
+  confidence?: {
+    score: number;
+    label: "Verified" | "Likely" | "Possible";
+  };
+  exploitability?: string[];
+  businessImpact?: string;
+  evidence?: string;
+  remediationSteps?: string[];
+  verificationMethod?: string;
+  references?: { title: string; url: string }[];
+  frameworkFixes?: {
+    nginx?: string;
+    apache?: string;
+    iis?: string;
+    express?: string;
+    node?: string;
+    cloudflare?: string;
+  };
+  status?: "Active" | "Verified" | "Resolved";
+  timeline?: {
+    detectedAt: string;
+    firstSeen: string;
+    lastSeen: string;
+  };
 }
+
+export type ReportFinding = FindingItem;
 
 export interface SecurityReportMetrics {
   score: number;
   riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   modulesPassed: number;
   totalModules: number;
+  averageCvss: number;
+  complianceScore: number;
   findingsCount: {
     critical: number;
     high: number;
@@ -213,7 +267,7 @@ export function extractReportFindings(scan?: Scan | null): FindingItem[] {
   }
 
   // 1. DNS Module Findings
-  const dns = scan.module_results.dns as DnsScanResult | undefined;
+  const dns = scan?.module_results?.dns as DnsScanResult | undefined;
   if (dns && Array.isArray(dns.security_observations)) {
     dns.security_observations.forEach((obs, idx) => {
       if (typeof obs === "string" && obs.trim()) {
@@ -231,7 +285,7 @@ export function extractReportFindings(scan?: Scan | null): FindingItem[] {
   }
 
   // 2. WHOIS Module Findings
-  const whois = scan.module_results.whois as WhoisScanResult | undefined;
+  const whois = scan?.module_results?.whois as WhoisScanResult | undefined;
   if (whois && Array.isArray(whois.security_observations)) {
     whois.security_observations.forEach((obs, idx) => {
       if (obs && typeof obs === "object") {
@@ -254,7 +308,7 @@ export function extractReportFindings(scan?: Scan | null): FindingItem[] {
   }
 
   // 3. SSL Module Findings
-  const ssl = scan.module_results.ssl as SslScanResult | undefined;
+  const ssl = scan?.module_results?.ssl as SslScanResult | undefined;
   if (ssl && Array.isArray(ssl.security_observations)) {
     ssl.security_observations.forEach((obs, idx) => {
       if (obs && typeof obs === "object") {
@@ -276,7 +330,7 @@ export function extractReportFindings(scan?: Scan | null): FindingItem[] {
   }
 
   // 4. Headers Module Findings
-  const headersModule = scan.module_results.headers as HeadersScanResult | undefined;
+  const headersModule = scan?.module_results?.headers as HeadersScanResult | undefined;
   if (headersModule && Array.isArray(headersModule.security_observations)) {
     headersModule.security_observations.forEach((obs, idx) => {
       if (obs && typeof obs === "object") {
@@ -298,7 +352,7 @@ export function extractReportFindings(scan?: Scan | null): FindingItem[] {
   }
 
   // 5. Cookies Module Findings
-  const cookiesModule = scan.module_results?.cookies as CookieScanResult | undefined;
+  const cookiesModule = scan?.module_results?.cookies as CookieScanResult | undefined;
   if (cookiesModule && Array.isArray(cookiesModule.security_observations)) {
     cookiesModule.security_observations.forEach((obs, idx) => {
       if (obs && typeof obs === "object") {
@@ -319,6 +373,28 @@ export function extractReportFindings(scan?: Scan | null): FindingItem[] {
     });
   }
 
+  // 6. Technology Stack Module Findings
+  const techModule = scan?.module_results?.tech as TechScanResult | undefined;
+  if (techModule && Array.isArray(techModule.security_observations)) {
+    techModule.security_observations.forEach((obs, idx) => {
+      if (obs && typeof obs === "object") {
+        const title = obs.title || "Technology Stack Observation";
+        const description = obs.description || title;
+        const severity = normalizeSeverity(obs.severity);
+        const recommendation = deriveRecommendation(description, severity);
+
+        findings.push({
+          id: obs.code || `TCK-${String(idx + 1).padStart(3, "0")}`,
+          module: "Tech",
+          severity,
+          title,
+          description,
+          recommendation,
+        });
+      }
+    });
+  }
+
   return findings;
 }
 
@@ -327,7 +403,7 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
     score: 100,
     riskLevel: "LOW",
     modulesPassed: 0,
-    totalModules: 5,
+    totalModules: 6,
     findingsCount: { critical: 0, high: 0, medium: 0, warning: 0, info: 0, total: 0 },
     duration: null,
   };
@@ -372,11 +448,12 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
   score -= medium * 10;
   score -= warning * 5;
 
-  // Integrate WHOIS, SSL, Headers, and Cookies risk scores dynamically if present
+  // Integrate WHOIS, SSL, Headers, Cookies, and Tech risk scores dynamically if present
   const whois = scan.module_results?.whois as WhoisScanResult | undefined;
   const ssl = scan.module_results?.ssl as SslScanResult | undefined;
   const headersModule = scan.module_results?.headers as HeadersScanResult | undefined;
   const cookiesModule = scan.module_results?.cookies as CookieScanResult | undefined;
+  const techModuleResult = scan.module_results?.tech as TechScanResult | undefined;
 
   const componentScores = [score];
   if (whois && typeof whois.whois_score === "number") {
@@ -390,6 +467,9 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
   }
   if (cookiesModule && typeof cookiesModule.risk_score === "number") {
     componentScores.push(100 - cookiesModule.risk_score);
+  }
+  if (techModuleResult && typeof techModuleResult.risk_score === "number") {
+    componentScores.push(100 - techModuleResult.risk_score);
   }
 
   score = Math.round(componentScores.reduce((a, b) => a + b, 0) / componentScores.length);
@@ -412,6 +492,7 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
   const hasSsl = Boolean(scan.module_results?.ssl);
   const hasHeaders = Boolean(scan.module_results?.headers);
   const hasCookies = Boolean(scan.module_results?.cookies);
+  const hasTech = Boolean(scan.module_results?.tech);
 
   let totalModules = 0;
   let modulesPassed = 0;
@@ -456,15 +537,37 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
     }
   }
 
-  if (totalModules === 0) {
-    totalModules = 5;
+  if (hasTech) {
+    totalModules += 1;
+    const techStatus = (scan.module_results?.tech as TechScanResult)?.status;
+    if (techStatus === "completed") {
+      modulesPassed += 1;
+    }
   }
+
+  if (totalModules === 0) {
+    totalModules = 6;
+  }
+
+  const cvssScores = findings.map(
+    (f) =>
+      f.cvss?.score ??
+      (f.severity === "CRITICAL" ? 9.1 : f.severity === "HIGH" ? 7.5 : f.severity === "MEDIUM" ? 5.3 : 3.1)
+  );
+  const averageCvss =
+    cvssScores.length > 0
+      ? cvssScores.reduce((a, b) => a + b, 0) / cvssScores.length
+      : 0.0;
+
+  const complianceScore = Math.max(0, Math.min(100, Math.round(score * 0.95)));
 
   return {
     score,
     riskLevel,
     modulesPassed,
     totalModules,
+    averageCvss,
+    complianceScore,
     findingsCount: {
       critical,
       high,
