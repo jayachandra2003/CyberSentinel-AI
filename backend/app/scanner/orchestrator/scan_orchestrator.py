@@ -15,11 +15,12 @@ from typing import Any, Dict, List, Optional, Tuple
 from app.models.scan import ScanStatusEnum
 from app.repositories.scan_repository import ScanRepository
 from app.scanner.interfaces.module_interface import IScannerModule
-from app.scanner.modules.dns import DNSScanner
-from app.scanner.modules.whois import WHOISScanner
-from app.scanner.modules.ssl import SSLScanner
-from app.scanner.modules.headers import HeadersScanner
 from app.scanner.modules.cookies import CookieScanner
+from app.scanner.modules.dns import DNSScanner
+from app.scanner.modules.headers import HeadersScanner
+from app.scanner.modules.ssl import SSLScanner
+from app.scanner.modules.tech import TechScanner
+from app.scanner.modules.whois import WHOISScanner
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ class ScanOrchestrator:
                 SSLScanner(),
                 HeadersScanner(),
                 CookieScanner(),
+                TechScanner(),
             ]
 
     def register_module(self, module: IScannerModule) -> None:
