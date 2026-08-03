@@ -437,12 +437,14 @@ function ContactCard({
   info?: { name?: string | null; organization?: string | null; email?: string | null } | null;
 }) {
   return (
-    <div className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-950/30 space-y-1">
-      <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider block">{label}</span>
-      <div className="font-semibold text-slate-900 dark:text-slate-200 truncate text-[13px]">
-        {info?.name || info?.organization || "Redacted / Privacy"}
+    <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-950/30 space-y-1.5 h-full flex flex-col justify-between">
+      <div>
+        <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider block">{label}</span>
+        <div className="font-semibold text-slate-900 dark:text-slate-200 truncate text-[13px] mt-0.5">
+          {info?.name || info?.organization || "Redacted / Privacy"}
+        </div>
       </div>
-      <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400 truncate">
+      <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400 truncate pt-1 border-t border-slate-100 dark:border-slate-800/60">
         {info?.email || "No Email"}
       </div>
     </div>

@@ -210,8 +210,8 @@ export const DnsTab: React.FC<DnsTabProps> = ({ dns }) => {
                     className="overflow-hidden border-t border-slate-200 dark:border-slate-800"
                   >
                     {!hasRecords ? (
-                      <div className="p-3.5 px-4 text-[14px] text-slate-500 dark:text-slate-400 italic">
-                        {result.error || `No ${rtype} records found for target domain.`}
+                      <div className="p-4 text-[14px] font-mono text-slate-500 dark:text-slate-400 italic bg-slate-50/50 dark:bg-slate-950/40">
+                        {result.error || "No records were returned for this DNS record type."}
                       </div>
                     ) : (
                       <div className="divide-y divide-slate-100 dark:divide-slate-800/60">

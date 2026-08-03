@@ -146,6 +146,9 @@ export const CookiesTab: React.FC<CookiesTabProps> = ({ cookies }) => {
                 <div className="text-xl font-bold font-mono text-purple-400 leading-none mt-0.5">
                   {cookies.risk_score} <span className="text-[12px] text-slate-500 font-normal">/ 100</span>
                 </div>
+                <div className="text-[10px] text-emerald-500 font-medium mt-0.5">
+                  {cookies.cookies_count === 0 ? "No Cookie Risk Detected" : "Lower Score = Lower Risk"}
+                </div>
               </div>
             </button>
           </div>

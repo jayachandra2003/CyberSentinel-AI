@@ -95,10 +95,11 @@ export const HeadersTab: React.FC<HeadersTabProps> = ({ headers }) => {
 
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="p-2 px-3.5 rounded-lg border border-cyan-500/20 bg-cyan-500/5 text-right">
-            <div className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Headers Risk Score</div>
+            <div className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Header Risk Score</div>
             <div className="text-xl font-bold font-mono text-cyan-400 leading-none mt-0.5">
               {headers.risk_score} <span className="text-[12px] text-slate-500 font-normal">/ 100</span>
             </div>
+            <div className="text-[10px] text-slate-400 font-normal mt-0.5">Higher Score = Higher Risk</div>
           </div>
         </div>
       </div>
