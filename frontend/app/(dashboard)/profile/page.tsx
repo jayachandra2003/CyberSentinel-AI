@@ -23,17 +23,23 @@ export default function ProfilePage() {
               className="border-b border-slate-200 dark:border-slate-800 pb-4"
             >
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <UserIcon className="h-6 w-6 text-cyan-600 dark:text-cyan-400" />
-                User Account & Security Role
+                <UserIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                User Profile & Preferences
               </h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400">User identity details & RBAC permission assignments.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                Personal account security settings, multi-factor authentication, and notification preferences.
+              </p>
             </motion.div>
 
-            <Card glow className="p-8 text-center space-y-4">
-              <p className="text-slate-700 dark:text-slate-300 text-sm sm:text-base">
-                User entity model & RBAC role contract active.
-              </p>
-              <Badge variant="cyan">Role: ANALYST</Badge>
+            <Card glow className="p-12 text-center space-y-4">
+              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
+                🚧 Coming in Phase 9
+              </div>
+              <div>
+                <Badge variant="blue" className="text-xs px-3 py-1 font-mono">
+                  Planned for v2.0.0
+                </Badge>
+              </div>
             </Card>
           </main>
         </div>

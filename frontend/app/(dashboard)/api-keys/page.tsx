@@ -23,17 +23,23 @@ export default function ApiKeysPage() {
               className="border-b border-slate-200 dark:border-slate-800 pb-4"
             >
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Key className="h-6 w-6 text-cyan-600 dark:text-cyan-400" />
-                API Automation Keys
+                <Key className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                API Key Management
               </h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Hashed token credentials for CI/CD pipeline integration.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                Programmatic API access keys, rate limiting controls, and secure integration credentials.
+              </p>
             </motion.div>
 
-            <Card glow className="p-8 text-center space-y-4">
-              <p className="text-slate-700 dark:text-slate-300 text-sm sm:text-base">
-                APIKey entity model contract ready.
-              </p>
-              <Badge variant="cyan">Hashed Tokens Active</Badge>
+            <Card glow className="p-12 text-center space-y-4">
+              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
+                🚧 Coming in Phase 9
+              </div>
+              <div>
+                <Badge variant="emerald" className="text-xs px-3 py-1 font-mono">
+                  Planned for v2.0.0
+                </Badge>
+              </div>
             </Card>
           </main>
         </div>

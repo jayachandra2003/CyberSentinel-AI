@@ -24,16 +24,22 @@ export default function AuditLogsPage() {
             >
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <History className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-                Immutable Audit Trail
+                Audit Trail & Activity Logs
               </h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400">System user activity, authorization checks, and HTTP intercept logs.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                Immutable SOC compliance audit trail, access event logging, and security action telemetry.
+              </p>
             </motion.div>
 
-            <Card glow className="p-8 text-center space-y-4">
-              <p className="text-slate-700 dark:text-slate-300 text-sm sm:text-base">
-                AuditLog entity model & audit middleware active.
-              </p>
-              <Badge variant="amber">Audit Middleware Active</Badge>
+            <Card glow className="p-12 text-center space-y-4">
+              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
+                🚧 Coming in Phase 9
+              </div>
+              <div>
+                <Badge variant="amber" className="text-xs px-3 py-1 font-mono">
+                  Planned for v2.0.0
+                </Badge>
+              </div>
             </Card>
           </main>
         </div>

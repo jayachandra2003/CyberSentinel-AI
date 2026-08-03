@@ -26,14 +26,20 @@ export default function VulnerabilitiesPage() {
                 <ShieldAlert className="h-6 w-6 text-rose-600 dark:text-rose-400" />
                 Vulnerability Inventory
               </h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Normalized security finding schema & remediation guidance.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                Centralized vulnerability aggregation, CVE tracking, and severity threat intelligence database.
+              </p>
             </motion.div>
 
-            <Card glow className="p-8 text-center space-y-4">
-              <p className="text-slate-700 dark:text-slate-300 text-sm sm:text-base">
-                Vulnerability entity schema & result analyzer contract initialized.
-              </p>
-              <Badge variant="rose">Schema Contract Ready</Badge>
+            <Card glow className="p-12 text-center space-y-4">
+              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
+                🚧 Coming in Phase 8
+              </div>
+              <div>
+                <Badge variant="rose" className="text-xs px-3 py-1 font-mono">
+                  Planned for v1.8.0
+                </Badge>
+              </div>
             </Card>
           </main>
         </div>

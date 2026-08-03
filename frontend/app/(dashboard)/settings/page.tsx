@@ -24,16 +24,22 @@ export default function SettingsPage() {
             >
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <SettingsIcon className="h-6 w-6 text-slate-500 dark:text-slate-400" />
-                System & Alert Settings
+                System Settings & Configuration
               </h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Configure notifications, rate limits, and webhook integrations.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                Enterprise platform configuration, custom scan policies, and organization roles.
+              </p>
             </motion.div>
 
-            <Card glow className="p-8 text-center space-y-4">
-              <p className="text-slate-700 dark:text-slate-300 text-sm sm:text-base">
-                System configuration system scaffolded.
-              </p>
-              <Badge variant="slate">Settings Scaffolding Active</Badge>
+            <Card glow className="p-12 text-center space-y-4">
+              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
+                🚧 Coming in Phase 9
+              </div>
+              <div>
+                <Badge variant="slate" className="text-xs px-3 py-1 font-mono">
+                  Planned for v2.0.0
+                </Badge>
+              </div>
             </Card>
           </main>
         </div>

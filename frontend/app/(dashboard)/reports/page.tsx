@@ -24,16 +24,22 @@ export default function ReportsPage() {
             >
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <FileText className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                Assessment Reports
+                Executive Security Reports
               </h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Exported security assessment PDFs & executive summaries.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                Automated PDF report generation engine, compliance export suite, and stakeholder executive summaries.
+              </p>
             </motion.div>
 
-            <Card glow className="p-8 text-center space-y-4">
-              <p className="text-slate-700 dark:text-slate-300 text-sm sm:text-base">
-                Report Generator module interface initialized.
-              </p>
-              <Badge variant="purple">PDF Engine Ready</Badge>
+            <Card glow className="p-12 text-center space-y-4">
+              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
+                🚧 Coming in Phase 8
+              </div>
+              <div>
+                <Badge variant="purple" className="text-xs px-3 py-1 font-mono">
+                  Planned for v1.8.0
+                </Badge>
+              </div>
             </Card>
           </main>
         </div>
