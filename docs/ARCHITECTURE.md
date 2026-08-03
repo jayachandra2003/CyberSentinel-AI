@@ -1,86 +1,100 @@
-# CyberSentinel AI Architecture & Design Specification
+# CyberSentinel AI — Architecture & Technical Specifications
 
 ## System Overview
-
-CyberSentinel AI is an enterprise-grade defensive security assessment platform. The architecture strictly enforces Clean Architecture and SOLID principles, separating the API presentation layer, domain service logic, database persistence repositories, background worker orchestration, and modular security analyzer interfaces.
+CyberSentinel AI is built on a decoupled, asynchronous microservices-ready architecture:
+- **Frontend**: Next.js 14 App Router, React, Tailwind CSS, TypeScript.
+- **Backend**: FastAPI, Python 3.11+, AsyncIO, Pydantic v2.
+- **Database**: PostgreSQL 17 storing JSONB `module_results`.
 
 ---
 
-## 🏗 Layered Architecture Breakdown
+## Directory Structure
 
-```
-       +-------------------------------------------------------+
-       |             Next.js 15 App Router Frontend           |
-       |    (TypeScript, Tailwind CSS, TanStack Query, Zod)   |
-       +---------------------------+---------------------------+
-                                   |
-                                   | REST API / JSON Envelope
-                                   v
-       +-------------------------------------------------------+
-       |                  FastAPI API Gateway                  |
-       |       (Routing, Middleware, Rate Limiting, OpenAPI)    |
-       +---------------------------+---------------------------+
-                                   |
-            +----------------------+----------------------+
-            |                                             |
-            v                                             v
-+-----------------------+                     +-----------------------+
-|  Security & Auth Context |                   | Audit & Log Middleware |
-+-----------+-----------+                     +-----------+-----------+
-            |                                             |
-            +----------------------+----------------------+
-                                   |
-                                   v
-       +-------------------------------------------------------+
-       |                 Domain Service Layer                  |
-       |       (Business Validation, Scope Rules, RBAC)        |
-       +---------------------------+---------------------------+
-                                   |
-            +----------------------+----------------------+
-            |                                             |
-            v                                             v
-+-----------------------+                     +-----------------------+
-| Repository Pattern    |                     | Celery Task Broker    |
-| (SQLAlchemy 2.0 Async)|                     | (Redis Async Tasks)   |
-+-----------+-----------+                     +-----------+-----------+
-            |                                             |
-            v                                             v
-+-----------------------+                     +-----------------------+
-| PostgreSQL / Supabase |                     | Scanner Engine &      |
-| Database Engine       |                     | Modular Specs         |
-+-----------------------+                     +-----------------------+
+```text
+CyberSentinel AI/
+├── backend/
+│   ├── app/
+│   │   ├── api/                    # FastAPI route handlers (/api/v1/scans)
+│   │   ├── core/                   # Security, config, database sessions
+│   │   ├── models/                 # SQLAlchemy ORM models
+│   │   ├── repositories/           # Database CRUD abstraction
+│   │   └── scanner/
+│   │       ├── interfaces/         # IScannerModule abstract interface
+│   │       ├── modules/            # Scanner implementations
+│   │       │   ├── dns/            # DNSScanner
+│   │       │   ├── whois/          # WHOISScanner
+│   │       │   ├── ssl/            # SSLScanner
+│   │       │   ├── headers/        # HeadersScanner
+│   │       │   └── cookies/        # CookieScanner
+│   │       └── orchestrator/       # ScanOrchestrator pipeline engine
+│   └── test_*.py                   # Module verification scripts
+├── frontend/
+│   ├── app/                        # Next.js App Router pages
+│   ├── components/                 # React UI components
+│   │   └── scans/
+│   │       ├── report/             # Report modal tabs (DnsTab, SslTab, CookiesTab, etc.)
+│   │       └── ScanDetailModal.tsx # Master report container
+│   └── services/api/               # Axios API client & TypeScript types (scanService.ts)
+└── docs/                           # Official project documentation
 ```
 
 ---
 
-## 🔒 Defensive Scope & Ethical Guardrails
+## Backend Scanner Architecture
 
-1. **Target Authorization Requirement**: Scans can only be triggered against domains registered under verified user accounts.
-2. **Defensive Contract Interfaces**: The scanner framework (`backend/app/scanner/`) consists entirely of abstract contracts (`EngineInterface`, `ModuleInterface`, `AnalyzerInterface`).
-3. **Audit Logging**: Every action (login attempt, permission check, scan dispatch) creates an immutable record in the `AuditLog` entity.
+Every scanner engine implements the `IScannerModule` interface:
+
+```python
+class IScannerModule(ABC):
+    @property
+    @abstractmethod
+    def module_id(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        pass
+
+    @abstractmethod
+    async def run(self, target: str) -> Dict[str, Any]:
+        pass
+```
+
+### Scan Pipeline Flow
+
+```text
+FastAPI Router (POST /api/v1/scans)
+       │
+       ▼
+ScanOrchestrator.execute_scan_pipeline()
+       │
+       ├──► DNSScanner.run(target)
+       ├──► WHOISScanner.run(target)
+       ├──► SSLScanner.run(target)
+       ├──► HeadersScanner.run(target)
+       └──► CookieScanner.run(target)
+                │
+                ▼
+ScanRepository.update_module_results() ──► PostgreSQL (scans.module_results)
+                │
+                ▼
+Next.js Frontend ──► ScanDetailModal ──► Active Tabs (5 / 5 Modules Passed)
+```
 
 ---
 
-## 🧩 Database Domain Entities
+## Risk Engine & Scoring Formula
 
-1. `User`: Core authentication & RBAC identity.
-2. `APIKey`: Hashed security key for API automation.
-3. `ScanTarget`: Verified domain target.
-4. `Scan`: Execution record tracking scan status, start/end timestamps.
-5. `Vulnerability`: Normalized security finding schema.
-6. `Report`: Generated report record metadata.
-7. `AuditLog`: Immutable system security trail.
-8. `Notification`: Platform alert notifications.
+The overall security score (0–100) is calculated in `reportUtils.ts` by combining base deductions with module-specific risk scores:
 
----
+$$\text{Overall Score} = \text{Math.round}\left(\frac{\text{BaseScore} + \text{WhoisScore} + (100 - \text{SslRisk}) + (100 - \text{HeadersRisk}) + (100 - \text{CookieRisk})}{\text{CompletedModules}}\right)$$
 
-## ⚙️ Scanner Package Architecture
-
-The scanner subsystem is structured into decoupled modules:
-- `engine/`: Execution engine interface definitions.
-- `orchestrator/`: Multi-module workflow manager contract.
-- `registry/`: Dynamic module registration registry.
-- `interfaces/`: Core abstract interfaces for engines, modules, and analyzers.
-- `analyzers/`: Normalization pipeline interface.
-- `shared/`: Shared scan context & target metadata schemas.
-- `modules/`: Abstract placeholder modules (`ssl`, `headers`, `cookies`, `dns`, `tls`, `technologies`, `robots`, `sitemap`, `risk`).
+### Cookie Weighted Risk Formula
+$$\text{Cookie Risk Score} = \min\left(100, \sum_{i=1}^{N} \text{Weight}_i \times \text{BaseDeduction}_i\right)$$
+- **Authentication**: Weight 1.0
+- **Session**: Weight 0.8
+- **Tracking**: Weight 0.4
+- **Analytics**: Weight 0.2
+- **Functional**: Weight 0.1
+- **Unknown**: Weight 0.5
