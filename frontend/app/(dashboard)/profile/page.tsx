@@ -23,7 +23,7 @@ export default function ProfilePage() {
               className="border-b border-slate-200 dark:border-slate-800 pb-4"
             >
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <UserIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                <UserIcon className="h-6 w-6 text-cyan-600 dark:text-cyan-400" />
                 User Profile & Preferences
               </h1>
               <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
@@ -36,7 +36,7 @@ export default function ProfilePage() {
                 🚧 Coming in Phase 9
               </div>
               <div>
-                <Badge variant="blue" className="text-xs px-3 py-1 font-mono">
+                <Badge variant="cyan" className="text-xs px-3 py-1 font-mono">
                   Planned for v2.0.0
                 </Badge>
               </div>
