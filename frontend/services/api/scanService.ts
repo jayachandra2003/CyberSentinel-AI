@@ -171,6 +171,61 @@ export interface HeadersScanResult {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Cookie Security result types (mirror backend cookie_models.py)
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface ScoreBreakdownItem {
+  label: string;
+  points: number;
+  category: string;
+}
+
+export interface CookieAnalysisItem {
+  name: string;
+  value?: string | null;
+  domain?: string | null;
+  path?: string | null;
+  is_secure: boolean;
+  is_httponly: boolean;
+  samesite?: string | null;
+  is_host_prefix: boolean;
+  is_secure_prefix: boolean;
+  is_partitioned: boolean;
+  max_age?: number | null;
+  expires?: string | null;
+  category: string;
+  category_label: string;
+  weight: number;
+  finding_id?: string | null;
+  status: "configured" | "missing" | "weak" | "info";
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  title: string;
+  description: string;
+  recommendation: string;
+}
+
+export interface CookieObservationItem {
+  code: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  title: string;
+  description: string;
+}
+
+export interface CookieScanResult {
+  module_id: "cookies";
+  status: string;
+  target: string;
+  effective_url?: string | null;
+  cookies_count: number;
+  risk_score: number;
+  risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  analyzed_cookies: CookieAnalysisItem[];
+  raw_cookies: Record<string, unknown>[];
+  security_observations: CookieObservationItem[];
+  score_breakdown?: ScoreBreakdownItem[];
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Scan types
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -181,6 +236,7 @@ export interface ModuleResults {
   whois?: WhoisScanResult;
   ssl?: SslScanResult;
   headers?: HeadersScanResult;
+  cookies?: CookieScanResult;
   [key: string]: unknown;
 }
 

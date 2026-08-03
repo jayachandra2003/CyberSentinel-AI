@@ -14,7 +14,7 @@ import {
   CheckCircle,
   Circle,
 } from "lucide-react";
-import { Scan, DnsScanResult, WhoisScanResult, SslScanResult, HeadersScanResult } from "@/services/api/scanService";
+import { Scan, DnsScanResult, WhoisScanResult, SslScanResult, HeadersScanResult, CookieScanResult } from "@/services/api/scanService";
 import { calculateSecurityMetrics } from "./reportUtils";
 import { cn } from "@/lib/utils";
 
@@ -24,9 +24,10 @@ interface OverviewTabProps {
   whois?: WhoisScanResult;
   ssl?: SslScanResult;
   headersModule?: HeadersScanResult;
+  cookiesModule?: CookieScanResult;
 }
 
-export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl, headersModule }) => {
+export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl, headersModule, cookiesModule }) => {
   const metrics = calculateSecurityMetrics(scan);
   const { score, riskLevel, modulesPassed, totalModules, findingsCount, duration } = metrics;
 
@@ -51,7 +52,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl,
     { name: "WHOIS", status: whois ? "completed" : "pending" },
     { name: "SSL/TLS", status: ssl ? "completed" : "pending" },
     { name: "Headers", status: headersModule ? "completed" : "pending" },
-    { name: "Cookies", status: "pending" },
+    { name: "Cookies", status: cookiesModule ? "completed" : "pending" },
     { name: "Technologies", status: "pending" },
     { name: "Sitemap", status: "pending" },
     { name: "Robots", status: "pending" },
@@ -65,7 +66,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl,
   );
   const hasCsp = Boolean(
     headersModule?.analyzed_headers?.some(
-      (h) => h.header_name === "Content-Security-Policy" && h.status === "configured"
+      (h) => (h.header_name === "Content-Security-Policy" || h.header_name === "Content-Security-Policy-Report-Only") && (h.status === "configured" || h.status === "report_only")
     )
   );
   const hasXfo = Boolean(
@@ -73,6 +74,11 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl,
       (h) => h.header_name === "X-Frame-Options" && h.status === "configured"
     )
   );
+
+  const cookiesCount = cookiesModule?.cookies_count ?? 0;
+  const secureCookiesCount = cookiesModule?.analyzed_cookies?.filter((c) => c.is_secure).length ?? 0;
+  const httponlyCookiesCount = cookiesModule?.analyzed_cookies?.filter((c) => c.is_httponly).length ?? 0;
+  const samesiteCookiesCount = cookiesModule?.analyzed_cookies?.filter((c) => Boolean(c.samesite)).length ?? 0;
 
   // Compact compliance audit checks
   const checklistItems = [
@@ -88,6 +94,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl,
     { module: "Headers", label: "HSTS Transport Defense", status: hasHsts, detail: headersModule ? (hasHsts ? "HSTS active" : "HSTS missing/weak") : "Headers unverified" },
     { module: "Headers", label: "CSP Content Restriction", status: hasCsp, detail: headersModule ? (hasCsp ? "CSP policy active" : "CSP missing/weak") : "Headers unverified" },
     { module: "Headers", label: "Clickjacking Defense", status: hasXfo, detail: headersModule ? (hasXfo ? "Frame options active" : "Framing unrestricted") : "Headers unverified" },
+    { module: "Cookies", label: "Cookie Secure Transmission", status: Boolean(cookiesModule && (cookiesCount === 0 || secureCookiesCount === cookiesCount)), detail: cookiesModule ? (cookiesCount > 0 ? `${secureCookiesCount}/${cookiesCount} Secure flags` : "Zero cookies issued") : "Cookies unverified" },
+    { module: "Cookies", label: "HttpOnly XSS Defense", status: Boolean(cookiesModule && (cookiesCount === 0 || httponlyCookiesCount === cookiesCount)), detail: cookiesModule ? (cookiesCount > 0 ? `${httponlyCookiesCount}/${cookiesCount} HttpOnly flags` : "Zero cookies issued") : "Cookies unverified" },
+    { module: "Cookies", label: "SameSite CSRF Protection", status: Boolean(cookiesModule && (cookiesCount === 0 || samesiteCookiesCount === cookiesCount)), detail: cookiesModule ? (cookiesCount > 0 ? `${samesiteCookiesCount}/${cookiesCount} SameSite set` : "Zero cookies issued") : "Cookies unverified" },
   ];
 
   return (

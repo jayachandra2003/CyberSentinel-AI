@@ -12,7 +12,6 @@ import {
   Check,
   Search,
   Server,
-  Globe,
 } from "lucide-react";
 import { HeadersScanResult, HeaderAnalysisItem } from "@/services/api/scanService";
 import { Badge } from "@/components/ui/Badge";

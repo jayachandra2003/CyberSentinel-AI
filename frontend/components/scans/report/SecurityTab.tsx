@@ -156,6 +156,8 @@ function FindingCard({ finding }: { finding: FindingItem }) {
       ? "SSL / TLS Security Analysis"
       : finding.module === "Headers"
       ? "HTTP Security Headers"
+      : finding.module === "Cookies"
+      ? "Cookie Security Analysis"
       : finding.module;
 
   return (

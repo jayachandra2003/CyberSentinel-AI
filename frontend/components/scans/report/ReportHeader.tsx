@@ -1,13 +1,13 @@
 "use client";
 
 import React from "react";
-import { Globe, ShieldCheck, Database, AlertTriangle, Code2, Award, Cpu, Calendar, FileText, Lock, Shield } from "lucide-react";
+import { Globe, ShieldCheck, Database, AlertTriangle, Code2, Award, Cpu, Calendar, FileText, Lock, Shield, Cookie } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Scan } from "@/services/api/scanService";
 import { calculateSecurityMetrics } from "./reportUtils";
 import { cn } from "@/lib/utils";
 
-export type ReportTab = "overview" | "dns" | "whois" | "ssl" | "headers" | "security" | "json";
+export type ReportTab = "overview" | "dns" | "whois" | "ssl" | "headers" | "cookies" | "security" | "json";
 
 interface ReportHeaderProps {
   scan: Scan;
@@ -17,6 +17,7 @@ interface ReportHeaderProps {
   whoisRecordCount?: number;
   sslObsCount?: number;
   headersObsCount?: number;
+  cookiesObsCount?: number;
   securityObsCount: number;
 }
 
@@ -28,6 +29,7 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
   whoisRecordCount = 0,
   sslObsCount = 0,
   headersObsCount = 0,
+  cookiesObsCount = 0,
   securityObsCount,
 }) => {
   const metrics = calculateSecurityMetrics(scan);
@@ -70,6 +72,7 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
     { id: "whois", label: "WHOIS", icon: <FileText className="h-4 w-4" />, badge: whoisRecordCount },
     { id: "ssl", label: "SSL / TLS", icon: <Lock className="h-4 w-4" />, badge: sslObsCount },
     { id: "headers", label: "HTTP Headers", icon: <Shield className="h-4 w-4" />, badge: headersObsCount },
+    { id: "cookies", label: "Cookies", icon: <Cookie className="h-4 w-4" />, badge: cookiesObsCount },
     { id: "security", label: "Security & Risk", icon: <AlertTriangle className="h-4 w-4" />, badge: securityObsCount },
     { id: "json", label: "Raw JSON", icon: <Code2 className="h-4 w-4" /> },
   ];
@@ -100,7 +103,7 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({
               <div className="flex items-center gap-3 text-[13px] text-slate-500 dark:text-slate-400 font-normal mt-1 flex-wrap">
                 <span className="flex items-center gap-1.5">
                   <Cpu className="h-3.5 w-3.5 text-cyan-500" />
-                  Engine: <span className="font-mono text-slate-700 dark:text-slate-300 font-normal">v1.2.0-defensive</span>
+                  Engine: <span className="font-mono text-slate-700 dark:text-slate-300 font-normal">v1.6.0-defensive</span>
                 </span>
                 <span className="hidden sm:inline text-slate-400">•</span>
                 <span className="flex items-center gap-1.5">

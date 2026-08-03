@@ -1,6 +1,6 @@
-import { Scan, DnsScanResult, WhoisScanResult, SslScanResult, HeadersScanResult } from "@/services/api/scanService";
+import { Scan, DnsScanResult, WhoisScanResult, SslScanResult, HeadersScanResult, CookieScanResult } from "@/services/api/scanService";
 
-export type UnifiedModule = "DNS" | "WHOIS" | "SSL" | "Headers";
+export type UnifiedModule = "DNS" | "WHOIS" | "SSL" | "Headers" | "Cookies";
 export type SeverityLevel = "CRITICAL" | "HIGH" | "MEDIUM" | "WARNING" | "INFO";
 
 export interface FindingItem {
@@ -58,6 +58,10 @@ const PATTERNS: { severity: SeverityLevel; regexes: RegExp[] }[] = [
       /missing.*hsts/i,
       /missing.*content-security-policy/i,
       /missing.*x-frame-options/i,
+      /missing secure flag/i,
+      /missing httponly flag/i,
+      /insecure samesite=none/i,
+      /invalid __host- prefix/i,
     ],
   },
   {
@@ -77,6 +81,9 @@ const PATTERNS: { severity: SeverityLevel; regexes: RegExp[] }[] = [
       /weak.*directives/i,
       /csp.*report-only/i,
       /report-only mode/i,
+      /missing samesite attribute/i,
+      /invalid __secure- prefix/i,
+      /overly permissive domain/i,
     ],
   },
   {
@@ -91,6 +98,7 @@ const PATTERNS: { severity: SeverityLevel; regexes: RegExp[] }[] = [
       /single nameserver/i,
       /missing domain creation date/i,
       /missing.*permissions-policy/i,
+      /excessive cookie lifespan/i,
     ],
   },
   {
@@ -108,6 +116,8 @@ const PATTERNS: { severity: SeverityLevel; regexes: RegExp[] }[] = [
       /ssl\/tls posture healthy/i,
       /valid ssl certificate/i,
       /http security posture healthy/i,
+      /cookie security posture healthy/i,
+      /no http response cookies issued/i,
     ],
   },
 ];
@@ -135,6 +145,18 @@ export function normalizeSeverity(rawSeverity?: string | null): SeverityLevel {
 export function deriveRecommendation(text: string, severity: SeverityLevel): string {
   const lower = text.toLowerCase();
 
+  if (lower.includes("httponly")) {
+    return "Append 'HttpOnly' flag to 'Set-Cookie' header to prevent XSS-based session token access.";
+  }
+  if (lower.includes("secure flag") || lower.includes("missing secure")) {
+    return "Append 'Secure' flag to 'Set-Cookie' header to enforce HTTPS-only cookie transmission.";
+  }
+  if (lower.includes("samesite")) {
+    return "Set 'SameSite=Lax' or 'SameSite=Strict' on all HTTP cookies to mitigate Cross-Site Request Forgery (CSRF).";
+  }
+  if (lower.includes("__host-") || lower.includes("__secure-")) {
+    return "Enforce cookie prefix security contract: Secure flag, Path=/, and omit Domain attribute.";
+  }
   if (lower.includes("report-only")) {
     return "Review violation telemetry logs and migrate Content-Security-Policy-Report-Only to an enforced Content-Security-Policy header.";
   }
@@ -275,6 +297,28 @@ export function extractReportFindings(scan?: Scan | null): FindingItem[] {
     });
   }
 
+  // 5. Cookies Module Findings
+  const cookiesModule = scan.module_results?.cookies as CookieScanResult | undefined;
+  if (cookiesModule && Array.isArray(cookiesModule.security_observations)) {
+    cookiesModule.security_observations.forEach((obs, idx) => {
+      if (obs && typeof obs === "object") {
+        const title = obs.title || "Cookie Security Observation";
+        const description = obs.description || title;
+        const severity = normalizeSeverity(obs.severity);
+        const recommendation = deriveRecommendation(description, severity);
+
+        findings.push({
+          id: obs.code || `CK-${String(idx + 1).padStart(3, "0")}`,
+          module: "Cookies",
+          severity,
+          title,
+          description,
+          recommendation,
+        });
+      }
+    });
+  }
+
   return findings;
 }
 
@@ -283,7 +327,7 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
     score: 100,
     riskLevel: "LOW",
     modulesPassed: 0,
-    totalModules: 4,
+    totalModules: 5,
     findingsCount: { critical: 0, high: 0, medium: 0, warning: 0, info: 0, total: 0 },
     duration: null,
   };
@@ -328,10 +372,11 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
   score -= medium * 10;
   score -= warning * 5;
 
-  // Integrate WHOIS, SSL, and Headers risk scores dynamically if present
+  // Integrate WHOIS, SSL, Headers, and Cookies risk scores dynamically if present
   const whois = scan.module_results?.whois as WhoisScanResult | undefined;
   const ssl = scan.module_results?.ssl as SslScanResult | undefined;
   const headersModule = scan.module_results?.headers as HeadersScanResult | undefined;
+  const cookiesModule = scan.module_results?.cookies as CookieScanResult | undefined;
 
   const componentScores = [score];
   if (whois && typeof whois.whois_score === "number") {
@@ -342,6 +387,9 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
   }
   if (headersModule && typeof headersModule.risk_score === "number") {
     componentScores.push(100 - headersModule.risk_score);
+  }
+  if (cookiesModule && typeof cookiesModule.risk_score === "number") {
+    componentScores.push(100 - cookiesModule.risk_score);
   }
 
   score = Math.round(componentScores.reduce((a, b) => a + b, 0) / componentScores.length);
@@ -363,6 +411,7 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
   const hasWhois = Boolean(scan.module_results?.whois);
   const hasSsl = Boolean(scan.module_results?.ssl);
   const hasHeaders = Boolean(scan.module_results?.headers);
+  const hasCookies = Boolean(scan.module_results?.cookies);
 
   let totalModules = 0;
   let modulesPassed = 0;
@@ -399,8 +448,16 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
     }
   }
 
+  if (hasCookies) {
+    totalModules += 1;
+    const cookiesStatus = (scan.module_results?.cookies as CookieScanResult)?.status;
+    if (cookiesStatus === "completed") {
+      modulesPassed += 1;
+    }
+  }
+
   if (totalModules === 0) {
-    totalModules = 4;
+    totalModules = 5;
   }
 
   return {
