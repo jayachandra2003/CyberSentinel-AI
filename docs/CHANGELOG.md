@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.2] - 2026-08-03
+
+### Fixed
+- Fixed unsupported Badge variant on the Profile page (`variant="cyan"`).
+- Restored clean TypeScript compilation (`npx tsc --noEmit`).
+- No functional changes.
+- No backend, API, or database modifications.
+
+---
+
+## [1.6.1] - 2026-08-03
+
+### Changed
+- Standardized roadmap placeholder pages across all unfinished dashboard modules.
+- Replaced inconsistent placeholder messages with roadmap-based phase indicators.
+- Added consistent "Coming in Phase X" messaging and planned version badges.
+- Improved UI consistency while preserving the CyberSentinel AI design language.
+- No backend, scanner, API, authentication, or database changes.
+
+---
+
 ## [1.6.0] - 2026-08-03
 
 ### Added
