@@ -404,6 +404,8 @@ export function calculateSecurityMetrics(scan?: Scan | null): SecurityReportMetr
     riskLevel: "LOW",
     modulesPassed: 0,
     totalModules: 6,
+    averageCvss: 0,
+    complianceScore: 100,
     findingsCount: { critical: 0, high: 0, medium: 0, warning: 0, info: 0, total: 0 },
     duration: null,
   };
