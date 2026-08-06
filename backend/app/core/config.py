@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     SCAN_TIMEOUT: int = 180
     MODULE_TIMEOUT: int = 25
     MAX_RETRIES: int = 2
+    MAX_BATCH_SIZE: int = 10
+    MAX_QUEUE_SIZE: int = 100
+    RETRY_BACKOFF_FACTOR: float = 1.5
 
     # Security & Enterprise Session JWT Configuration
     SECRET_KEY: str = "super-secret-jwt-key-change-in-production-2026"

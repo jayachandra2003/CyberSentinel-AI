@@ -1,67 +1,97 @@
-import asyncio
-from typing import List
+"""
+Scans Endpoints — Enterprise Scan Engine REST APIs (Phase 7 Milestone 2).
+
+Exposes single scan submission, batch submission, engine queue status, scan details, and scan cancellation.
+"""
+from __future__ import annotations
+
+from typing import List, Union
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.deps import get_current_user
-from app.database.session import AsyncSessionLocal, get_db
+from app.database.session import get_db
 from app.models.user import User
 from app.repositories.scan_repository import ScanRepository
 from app.schemas.common import ApiResponse
-from app.schemas.scan import ScanCreate, ScanResponse
-from app.scanner.orchestrator.scan_orchestrator import ScanOrchestrator
+from app.schemas.scan import ScanResponse
+from app.schemas.scan_engine import (
+    BatchScanRequest,
+    BatchScanResponse,
+    CancelScanResponse,
+    EngineQueueStatusResponse,
+    EngineScanDetailsResponse,
+    SingleScanRequest,
+    SingleScanResponse,
+)
+from app.services.engine_service import engine_service
 
 router = APIRouter()
-orchestrator = ScanOrchestrator()
 
 
-async def _run_pipeline_with_own_session(scan_id: int) -> None:
-    """
-    Run the scan pipeline in a background task with its own independent DB session.
-
-    The request-scoped session is closed by FastAPI's dependency teardown before
-    the background task begins executing, so passing the request's scan_repo would
-    cause 'Session is already closed' / InvalidStateError exceptions.
-
-    Instead, we open a fresh AsyncSession here, scoped entirely to this task.
-    """
-    async with AsyncSessionLocal() as session:
-        scan_repo = ScanRepository(session)
-        try:
-            await orchestrator.execute_scan_pipeline(scan_id, scan_repo)
-        except Exception:
-            # Pipeline errors are internal — never crash the background task silently
-            pass
-
-
-@router.post("/", response_model=ApiResponse[ScanResponse], status_code=status.HTTP_201_CREATED)
-async def create_scan(
-    payload: ScanCreate,
+@router.post("/", response_model=ApiResponse[SingleScanResponse], status_code=status.HTTP_201_CREATED)
+async def create_single_scan(
+    payload: SingleScanRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new defensive scan and trigger background execution."""
-    scan_repo = ScanRepository(db)
-    scan = await scan_repo.create_scan(
+    """
+    Submit a single target scan job to the Enterprise Scan Engine.
+    """
+    target = payload.target or payload.target_domain
+    if not target:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Target domain must be provided via 'target' or 'target_domain'.",
+        )
+
+    profile = payload.profile or payload.scan_type or "Standard Scan"
+    result = await engine_service.submit_single_scan(
         user_id=current_user.id,
-        target_domain=payload.target_domain,
-        scan_type=payload.scan_type,
+        target_raw=target,
+        profile=profile,
+        db=db,
     )
+    return ApiResponse(success=True, data=result)
 
-    # Launch background pipeline with its OWN session — never reuse the request session.
-    asyncio.create_task(_run_pipeline_with_own_session(scan.id))
 
-    return ApiResponse(
-        success=True,
-        data=ScanResponse.model_validate(scan),
+@router.post("/batch", response_model=ApiResponse[BatchScanResponse], status_code=status.HTTP_201_CREATED)
+async def create_batch_scans(
+    payload: BatchScanRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Submit multiple target scan jobs in a single batch to the Enterprise Scan Engine.
+    """
+    result = await engine_service.submit_batch_scans(
+        user_id=current_user.id,
+        targets=payload.targets,
+        profile=payload.profile,
+        db=db,
     )
+    return ApiResponse(success=True, data=result)
+
+
+@router.get("/queue/status", response_model=ApiResponse[EngineQueueStatusResponse])
+async def get_queue_status(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Inspect Enterprise Scan Engine queue status, active workers, and running scans count.
+    """
+    result = engine_service.get_queue_status()
+    return ApiResponse(success=True, data=result)
 
 
 @router.get("/", response_model=ApiResponse[List[ScanResponse]])
-async def list_scans(
+async def list_user_scans(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all scans for the current authenticated user."""
+    """
+    List all scans for the current authenticated user (backwards compatible).
+    """
     scan_repo = ScanRepository(db)
     scans = await scan_repo.get_user_scans(user_id=current_user.id)
     return ApiResponse(
@@ -70,24 +100,30 @@ async def list_scans(
     )
 
 
-@router.get("/{scan_id}", response_model=ApiResponse[ScanResponse])
-async def get_scan(
+@router.get("/{scan_id}", response_model=ApiResponse[EngineScanDetailsResponse])
+async def get_scan_details(
     scan_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Retrieve scan status and details by ID."""
-    scan_repo = ScanRepository(db)
-    scan = await scan_repo.get_scan_by_id(scan_id)
-    if not scan:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Scan record not found.",
-        )
-    return ApiResponse(
-        success=True,
-        data=ScanResponse.model_validate(scan),
-    )
+    """
+    Retrieve detailed scan status, module execution progress, and timestamps.
+    """
+    result = await engine_service.get_scan_details(scan_id=scan_id, db=db)
+    return ApiResponse(success=True, data=result)
+
+
+@router.post("/{scan_id}/cancel", response_model=ApiResponse[CancelScanResponse])
+async def cancel_scan(
+    scan_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Cancel a queued or running scan job.
+    """
+    result = await engine_service.cancel_scan(scan_id=scan_id, db=db)
+    return ApiResponse(success=True, data=result)
 
 
 @router.delete("/{scan_id}", response_model=ApiResponse[dict])
@@ -96,7 +132,9 @@ async def delete_scan(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete or cancel a scan record by ID."""
+    """
+    Delete a scan record by ID (backwards compatible).
+    """
     scan_repo = ScanRepository(db)
     scan = await scan_repo.get_scan_by_id(scan_id)
     if not scan:
