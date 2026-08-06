@@ -296,12 +296,108 @@ export interface ApiResponse<T> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Phase 7 Engine API Types
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface SingleScanRequest {
+  target?: string;
+  target_domain?: string;
+  profile?: string;
+  scan_type?: string;
+}
+
+export interface SingleScanResponse {
+  scan_id: number;
+  target: string;
+  status: string;
+  current_state: string;
+  profile: string;
+  created_at?: string;
+}
+
+export interface BatchScanRequest {
+  targets: string[];
+  profile?: string;
+}
+
+export interface BatchScanResponse {
+  batch_id: string;
+  total_jobs: number;
+  queued_jobs: number;
+  scan_ids: number[];
+  failed_targets: { target: string; reason: string }[];
+}
+
+export interface EngineQueueJob {
+  job_id: number;
+  target_domain: string;
+  profile: string;
+  state: string;
+  created_at: string;
+}
+
+export interface EngineQueueStatus {
+  queue_length: number;
+  running_scans: number;
+  active_workers: number;
+  max_workers: number;
+  queued_jobs: EngineQueueJob[];
+}
+
+export interface EngineScanDetails {
+  scan_id: number;
+  target_domain: string;
+  status: string;
+  current_state: string;
+  progress: number;
+  profile: string;
+  module_status: Record<string, string>;
+  created_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  duration?: number;
+  summary?: string;
+}
+
+export interface CancelScanResponse {
+  scan_id: number;
+  status: string;
+  current_state: string;
+  message: string;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Service
 // ────────────────────────────────────────────────────────────────────────────
 
 export const scanService = {
   async createScan(data: { target_domain: string; scan_type: string }): Promise<ApiResponse<Scan>> {
     const res = await apiClient.post<ApiResponse<Scan>>("/scans/", data);
+    return res.data;
+  },
+
+  async createSingleScan(data: SingleScanRequest): Promise<ApiResponse<SingleScanResponse>> {
+    const res = await apiClient.post<ApiResponse<SingleScanResponse>>("/scans/", data);
+    return res.data;
+  },
+
+  async createBatchScans(data: BatchScanRequest): Promise<ApiResponse<BatchScanResponse>> {
+    const res = await apiClient.post<ApiResponse<BatchScanResponse>>("/scans/batch", data);
+    return res.data;
+  },
+
+  async getEngineQueueStatus(): Promise<ApiResponse<EngineQueueStatus>> {
+    const res = await apiClient.get<ApiResponse<EngineQueueStatus>>("/scans/queue/status");
+    return res.data;
+  },
+
+  async getEngineScanDetails(id: number): Promise<ApiResponse<EngineScanDetails>> {
+    const res = await apiClient.get<ApiResponse<EngineScanDetails>>(`/scans/${id}`);
+    return res.data;
+  },
+
+  async cancelScan(id: number): Promise<ApiResponse<CancelScanResponse>> {
+    const res = await apiClient.post<ApiResponse<CancelScanResponse>>(`/scans/${id}/cancel`);
     return res.data;
   },
 
