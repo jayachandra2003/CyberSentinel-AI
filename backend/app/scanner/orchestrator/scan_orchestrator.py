@@ -22,6 +22,9 @@ from app.scanner.modules.ssl import SSLScanner
 from app.scanner.modules.tech import TechScanner
 from app.scanner.modules.whois import WHOISScanner
 
+from app.scanner.engine.progress_calculator import ProgressCalculator
+from app.scanner.registry.scanner_module_registry import ScannerModuleRegistry
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,20 +38,20 @@ class ScanOrchestrator:
     already wired up in __init__.
     """
 
-    def __init__(self, modules: Optional[List[IScannerModule]] = None) -> None:
+    def __init__(
+        self,
+        modules: Optional[List[IScannerModule]] = None,
+        registry: Optional[ScannerModuleRegistry] = None,
+    ) -> None:
+        self.registry = registry or ScannerModuleRegistry(register_defaults=(modules is None))
         if modules is not None:
             # Allow callers (e.g. tests) to supply an explicit module list
             self.modules: List[IScannerModule] = modules
+            for mod in modules:
+                self.registry.register(mod)
         else:
-            # Production default: register all implemented scanner modules here
-            self.modules = [
-                DNSScanner(),
-                WHOISScanner(),
-                SSLScanner(),
-                HeadersScanner(),
-                CookieScanner(),
-                TechScanner(),
-            ]
+            # Production default: register all implemented scanner modules via registry
+            self.modules = self.registry.get_enabled_modules()
 
     def register_module(self, module: IScannerModule) -> None:
         """Append an additional module at runtime (used in tests / CLI tooling)."""
@@ -130,14 +133,12 @@ class ScanOrchestrator:
             )
 
             # ── 3. Execute modules ─────────────────────────────────────
-            n = len(self.modules)
-            progress_per_module = int(85 / n) if n > 0 else 85
-
+            total_enabled_modules = len(self.modules)
             succeeded: List[str] = []
             failed: List[str] = []
 
             for idx, module in enumerate(self.modules):
-                current_progress = 5 + progress_per_module * idx
+                current_progress = ProgressCalculator.calculate_progress(idx, total_enabled_modules)
 
                 await scan_repo.update_scan_progress(
                     scan_id=scan_id,
@@ -150,13 +151,13 @@ class ScanOrchestrator:
                     module, target, scan_id, scan_repo
                 )
 
-                after_progress = current_progress + progress_per_module
+                after_progress = ProgressCalculator.calculate_progress(idx + 1, total_enabled_modules)
                 if ok:
                     succeeded.append(module_id)
                     await scan_repo.update_scan_progress(
                         scan_id=scan_id,
                         status=ScanStatusEnum.RUNNING,
-                        progress=min(after_progress, 90),
+                        progress=min(after_progress, 99),
                         summary=f"Module {module_id} completed successfully.",
                     )
                 else:
@@ -164,7 +165,7 @@ class ScanOrchestrator:
                     await scan_repo.update_scan_progress(
                         scan_id=scan_id,
                         status=ScanStatusEnum.RUNNING,
-                        progress=min(after_progress, 90),
+                        progress=min(after_progress, 99),
                         summary=f"Module {module_id} encountered an error — continuing pipeline.",
                     )
 

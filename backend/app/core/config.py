@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
 
+    # Enterprise Scan Engine Settings (Phase 7)
+    MAX_CONCURRENT_SCANS: int = 4
+    SCAN_TIMEOUT: int = 180
+    MODULE_TIMEOUT: int = 25
+    MAX_RETRIES: int = 2
+
     # Security & Enterprise Session JWT Configuration
     SECRET_KEY: str = "super-secret-jwt-key-change-in-production-2026"
     ALGORITHM: str = "HS256"
