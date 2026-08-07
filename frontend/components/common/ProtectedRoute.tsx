@@ -1,22 +1,22 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader } from "@/components/ui/Loader";
 
 export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  if (isLoading || !isAuthenticated) {
     return <Loader />;
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="p-8 text-center text-slate-400">
-        Authentication Required. Please log in to access security platform features.
-      </div>
-    );
   }
 
   return <>{children}</>;

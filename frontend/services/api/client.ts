@@ -1,5 +1,6 @@
 import axios, { InternalAxiosRequestConfig } from "axios";
 import { env } from "@/config/env";
+import { tokenStorage } from "@/lib/auth/tokenStorage";
 
 export const apiClient = axios.create({
   baseURL: env.NEXT_PUBLIC_API_BASE_URL,
@@ -13,7 +14,7 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("token");
+      const token = tokenStorage.getAccessToken();
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -69,7 +70,7 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       if (typeof window !== "undefined") {
-        const refreshToken = localStorage.getItem("refresh_token");
+        const refreshToken = tokenStorage.getRefreshToken();
 
         if (refreshToken) {
           try {
@@ -83,8 +84,7 @@ apiClient.interceptors.response.use(
               const newAccessToken = res.data.data.access_token;
               const newRefreshToken = res.data.data.refresh_token || refreshToken;
 
-              localStorage.setItem("token", newAccessToken);
-              localStorage.setItem("refresh_token", newRefreshToken);
+              tokenStorage.setTokens(newAccessToken, newRefreshToken);
 
               apiClient.defaults.headers.common["Authorization"] = `Bearer ${newAccessToken}`;
               originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
@@ -94,8 +94,7 @@ apiClient.interceptors.response.use(
             }
           } catch (refreshErr) {
             processQueue(refreshErr, null);
-            localStorage.removeItem("token");
-            localStorage.removeItem("refresh_token");
+            tokenStorage.clearTokens();
             if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
               window.location.href = "/login";
             }
@@ -108,8 +107,7 @@ apiClient.interceptors.response.use(
 
       // No refresh token available
       if (typeof window !== "undefined") {
-        localStorage.removeItem("token");
-        localStorage.removeItem("refresh_token");
+        tokenStorage.clearTokens();
       }
     }
 

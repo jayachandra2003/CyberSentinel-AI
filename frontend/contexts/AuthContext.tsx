@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { authService, UserResponse } from "@/services/api/authService";
 import { LoginFormData } from "@/lib/validation/authSchemas";
+import { tokenStorage } from "@/lib/auth/tokenStorage";
 
 interface AuthContextType {
   user: UserResponse | null;
@@ -26,10 +27,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const restoreSession = useCallback(async () => {
     setIsLoading(true);
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("token");
-      const refreshToken = localStorage.getItem("refresh_token");
-      const isRemember = localStorage.getItem("remember_device") === "true";
-      setRememberDevice(isRemember);
+      const token = tokenStorage.getAccessToken();
+      const refreshToken = tokenStorage.getRefreshToken();
+      setRememberDevice(false);
 
       if (token) {
         try {
@@ -47,10 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             try {
               const refreshRes = await authService.refreshToken(refreshToken);
               if (refreshRes.success && refreshRes.data.access_token) {
-                localStorage.setItem("token", refreshRes.data.access_token);
-                if (refreshRes.data.refresh_token) {
-                  localStorage.setItem("refresh_token", refreshRes.data.refresh_token);
-                }
+                tokenStorage.setTokens(refreshRes.data.access_token, refreshRes.data.refresh_token);
                 const meRes = await authService.getCurrentUser();
                 if (meRes.success && meRes.data) {
                   setUser(meRes.data);
@@ -60,13 +57,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 }
               }
             } catch (rErr) {
-              // Refresh failed
-              localStorage.removeItem("token");
-              localStorage.removeItem("refresh_token");
-              localStorage.removeItem("remember_device");
+              // Refresh failed — clear tokens cleanly
+              tokenStorage.clearTokens();
             }
+          } else {
+            tokenStorage.clearTokens();
           }
         }
+      } else {
+        tokenStorage.clearTokens();
       }
     }
     setUser(null);
@@ -79,17 +78,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [restoreSession]);
 
   const login = async (data: LoginFormData): Promise<boolean> => {
-    // Note: Do NOT mutate global isLoading here. Global isLoading represents initial session restoration.
-    // Mutating global isLoading causes RouteGuard to unmount the LoginPage component and mount SessionLoadingScreen,
-    // destroying local form state (such as serverError) when login fails.
     try {
       const res = await authService.loginUser(data);
       if (res.success && res.data.access_token) {
-        localStorage.setItem("token", res.data.access_token);
-        localStorage.setItem("refresh_token", res.data.refresh_token);
-        const isRemember = Boolean(data.rememberMe);
-        localStorage.setItem("remember_device", isRemember ? "true" : "false");
-        setRememberDevice(isRemember);
+        tokenStorage.setTokens(res.data.access_token, res.data.refresh_token);
+        setRememberDevice(false);
 
         setUser(res.data.user);
         setIsAuthenticated(true);
@@ -108,9 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Ignore backend logout errors
     } finally {
       if (typeof window !== "undefined") {
-        localStorage.removeItem("token");
-        localStorage.removeItem("refresh_token");
-        localStorage.removeItem("remember_device");
+        tokenStorage.clearTokens();
         if (reason) {
           sessionStorage.setItem("logout_reason", reason);
         }

@@ -13,6 +13,8 @@ const protectedRoutes = [
   "/settings",
   "/profile",
   "/api-keys",
+  "/audit-logs",
+  "/vulnerabilities",
 ];
 
 const publicAuthRoutes = ["/login", "/register"];
