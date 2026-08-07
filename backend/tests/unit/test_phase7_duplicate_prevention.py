@@ -32,10 +32,19 @@ class DummyScan:
         self.module_results = {}
 
 
-@pytest.mark.asyncio
-async def test_duplicate_queued_scan_prevention():
-    """Verify that submitting a duplicate QUEUED target raises HTTP 409."""
+@pytest.fixture
+async def fresh_engine():
     engine = EngineService()
+    try:
+        yield engine
+    finally:
+        await engine.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_duplicate_queued_scan_prevention(fresh_engine):
+    """Verify that submitting a duplicate QUEUED target raises HTTP 409."""
+    engine = fresh_engine
     mock_db = AsyncMock()
     mock_repo = MagicMock()
     mock_repo.get_user_scans = AsyncMock(return_value=[DummyScan(1, "example.com", ScanStatusEnum.QUEUED)])
@@ -49,9 +58,9 @@ async def test_duplicate_queued_scan_prevention():
 
 
 @pytest.mark.asyncio
-async def test_duplicate_running_scan_prevention():
+async def test_duplicate_running_scan_prevention(fresh_engine):
     """Verify that submitting a duplicate RUNNING target raises HTTP 409."""
-    engine = EngineService()
+    engine = fresh_engine
     mock_db = AsyncMock()
     mock_repo = MagicMock()
     mock_repo.get_user_scans = AsyncMock(return_value=[DummyScan(2, "example.com", ScanStatusEnum.RUNNING)])
@@ -65,9 +74,9 @@ async def test_duplicate_running_scan_prevention():
 
 
 @pytest.mark.asyncio
-async def test_completed_scan_can_be_recreated():
+async def test_completed_scan_can_be_recreated(fresh_engine):
     """Verify that a target with status COMPLETED can be submitted again."""
-    engine = EngineService()
+    engine = fresh_engine
     mock_db = AsyncMock()
     mock_repo = MagicMock()
     mock_repo.get_user_scans = AsyncMock(return_value=[DummyScan(3, "example.com", ScanStatusEnum.COMPLETED)])
@@ -81,9 +90,9 @@ async def test_completed_scan_can_be_recreated():
 
 
 @pytest.mark.asyncio
-async def test_failed_scan_can_be_recreated():
+async def test_failed_scan_can_be_recreated(fresh_engine):
     """Verify that a target with status FAILED can be submitted again."""
-    engine = EngineService()
+    engine = fresh_engine
     mock_db = AsyncMock()
     mock_repo = MagicMock()
     mock_repo.get_user_scans = AsyncMock(return_value=[DummyScan(4, "example.com", ScanStatusEnum.FAILED)])
@@ -96,9 +105,9 @@ async def test_failed_scan_can_be_recreated():
 
 
 @pytest.mark.asyncio
-async def test_cancelled_scan_can_be_recreated():
+async def test_cancelled_scan_can_be_recreated(fresh_engine):
     """Verify that a target with status CANCELLED can be submitted again."""
-    engine = EngineService()
+    engine = fresh_engine
     mock_db = AsyncMock()
     mock_repo = MagicMock()
     mock_repo.get_user_scans = AsyncMock(return_value=[DummyScan(5, "example.com", ScanStatusEnum.CANCELLED)])
@@ -111,9 +120,9 @@ async def test_cancelled_scan_can_be_recreated():
 
 
 @pytest.mark.asyncio
-async def test_batch_submission_containing_duplicates():
+async def test_batch_submission_containing_duplicates(fresh_engine):
     """Verify that batch submission skips active duplicate targets and reports failure details."""
-    engine = EngineService()
+    engine = fresh_engine
     mock_db = AsyncMock()
     mock_repo = MagicMock()
     mock_repo.get_user_scans = AsyncMock(return_value=[DummyScan(1, "active.com", ScanStatusEnum.QUEUED)])

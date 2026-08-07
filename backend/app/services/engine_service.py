@@ -28,6 +28,7 @@ from app.schemas.scan_engine import (
 )
 from app.scanner.engine.progress_calculator import ProgressCalculator
 from app.scanner.engine.queue_manager import QueueManager, ScanJob
+from app.scanner.engine.queue_recovery import QueueRecoveryEngine
 from app.scanner.engine.state_machine import ScanEngineState, ScanStateMachine
 from app.scanner.engine.worker_pool_manager import WorkerPoolManager
 from app.scanner.orchestrator.scan_orchestrator import ScanOrchestrator
@@ -55,6 +56,7 @@ class EngineService:
         self.orchestrator = ScanOrchestrator(registry=self.registry)
         self.worker_pool.set_job_handler(self._execute_job_handler)
         self._background_loop_task: Optional[asyncio.Task] = None
+        self._is_recovering = False
 
     @classmethod
     def get_instance(cls) -> EngineService:
@@ -71,6 +73,22 @@ class EngineService:
                 loop.create_task(self.worker_pool.start())
             except RuntimeError:
                 pass
+
+    async def run_startup_recovery(self, db: AsyncSession) -> Tuple[int, int]:
+        """
+        Executes startup recovery to clean up stale RUNNING scans and re-enqueue QUEUED scans.
+        """
+        return await QueueRecoveryEngine.recover_on_startup(db, self.queue_manager)
+
+    async def shutdown(self) -> None:
+        """
+        Executes graceful engine shutdown:
+        1. Stops accepting new scan submissions.
+        2. Cleanly cancels worker tasks.
+        """
+        logger.info("EngineService shutting down gracefully...")
+        await self.worker_pool.shutdown()
+        logger.info("EngineService graceful shutdown complete.")
 
     async def _execute_job_handler(self, job: ScanJob) -> None:
         """Background handler executed by worker tasks for each dequeued job."""
@@ -93,6 +111,11 @@ class EngineService:
         """
         Validates target, checks for duplicate active scan, creates DB record, and enqueues job.
         """
+        if not self.worker_pool.accepting_jobs:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Scan engine is currently shutting down.",
+            )
         is_valid, domain, error_reason = validate_scan_target(target_raw)
         if not is_valid:
             raise HTTPException(
@@ -156,6 +179,12 @@ class EngineService:
         """
         Validates batch payload and enqueues multiple targets.
         """
+        if not self.worker_pool.accepting_jobs:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Scan engine is currently shutting down.",
+            )
+
         if not targets:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

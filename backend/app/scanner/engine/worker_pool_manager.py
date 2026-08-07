@@ -36,6 +36,11 @@ class WorkerPoolManager:
         self._running = False
         self._active_workers_count = 0
         self._job_handler: Optional[Callable[[ScanJob], asyncio.Future]] = None
+        self._accepting_jobs = True
+
+    @property
+    def accepting_jobs(self) -> bool:
+        return self._accepting_jobs
 
     @property
     def active_worker_count(self) -> int:
@@ -53,6 +58,7 @@ class WorkerPoolManager:
         if self._running:
             return
 
+        self._accepting_jobs = True
         self._running = True
         self._workers = []
         for i in range(self.max_workers):
@@ -66,6 +72,7 @@ class WorkerPoolManager:
         if not self._running:
             return
 
+        self._accepting_jobs = False
         self._running = False
         for task in self._workers:
             task.cancel()
@@ -74,6 +81,12 @@ class WorkerPoolManager:
         self._workers = []
         self._active_workers_count = 0
         logger.info("WorkerPoolManager stopped cleanly.")
+
+    async def shutdown(self) -> None:
+        """Gracefully stop accepting jobs and shutdown worker pool."""
+        logger.info("Initiating WorkerPoolManager graceful shutdown...")
+        self._accepting_jobs = False
+        await self.stop()
 
     async def _worker_loop(self, worker_id: int) -> None:
         """Background loop executed by each worker task."""

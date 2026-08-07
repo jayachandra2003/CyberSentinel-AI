@@ -28,6 +28,7 @@ class ScanStatusEnum(str, Enum):
     RUNNING = "Running"
     COMPLETED = "Completed"
     FAILED = "Failed"
+    CANCELLED = "Cancelled"
 
 
 class Scan(BaseModel):

@@ -14,8 +14,22 @@ import app.models  # Register all SQLAlchemy models in ORM registry
 async def lifespan(app: FastAPI):
     """Application startup and shutdown events."""
     logger.info(f"Starting {settings.PROJECT_NAME} in [{settings.ENVIRONMENT}] mode...")
+    try:
+        from app.database.session import AsyncSessionLocal
+        from app.services.engine_service import engine_service
+        async with AsyncSessionLocal() as session:
+            await engine_service.run_startup_recovery(session)
+    except Exception as exc:
+        logger.error(f"Startup queue recovery failed: {exc}", exc_info=True)
+
     yield
+
     logger.info(f"Shutting down {settings.PROJECT_NAME} cleanly...")
+    try:
+        from app.services.engine_service import engine_service
+        await engine_service.shutdown()
+    except Exception as exc:
+        logger.error(f"Engine service shutdown failed: {exc}", exc_info=True)
 
 
 app = FastAPI(

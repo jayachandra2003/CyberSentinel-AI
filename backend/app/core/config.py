@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     MAX_BATCH_SIZE: int = 10
     MAX_QUEUE_SIZE: int = 100
     RETRY_BACKOFF_FACTOR: float = 1.5
+    QUEUE_RECOVERY_ENABLED: bool = True
 
     # Security & Enterprise Session JWT Configuration
     SECRET_KEY: str = "super-secret-jwt-key-change-in-production-2026"
