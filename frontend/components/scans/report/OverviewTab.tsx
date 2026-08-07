@@ -33,7 +33,7 @@ interface OverviewTabProps {
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({ scan, dns, whois, ssl, headersModule, cookiesModule, techModule }) => {
   const metrics = calculateSecurityMetrics(scan);
-  const { score, riskLevel, modulesPassed, totalModules, findingsCount, duration, averageCvss, complianceScore } = metrics;
+  const { score, riskLevel, modulesPassed, totalModules, duration, averageCvss, complianceScore } = metrics;
 
   // Extract DNS metrics
   const aRecords = dns?.results?.A?.records ?? [];

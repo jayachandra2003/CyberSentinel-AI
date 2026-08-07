@@ -94,7 +94,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ scan }) => {
         {
           tool: { driver: { name: "CyberSentinel AI Engine", version: "v1.7.0" } },
           results: findings.map((f) => ({
-            ruleId: f.id,
+            ruleId: f.code || f.id,
             message: { text: f.title },
             locations: [{ physicalLocation: { artifactLocation: { uri: scan.target_domain } } }],
           })),
@@ -116,7 +116,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ scan }) => {
       `**Security Score:** ${metrics.score}/100\n` +
       `**Overall Risk:** ${metrics.riskLevel}\n\n` +
       `## Vulnerability Observations (${findings.length})\n\n` +
-      findings.map((f) => `### [${f.severity}] ${f.title}\n- **ID:** ${f.id}\n- **Module:** ${f.module}\n- **Recommendation:** ${f.recommendation}\n`).join("\n");
+      findings.map((f) => `### [${f.severity}] ${f.title}\n- **ID:** ${f.code || f.id}\n- **Module:** ${f.module}\n- **Recommendation:** ${f.recommendation}\n`).join("\n");
 
     const blob = new Blob([mdContent], { type: "text/markdown;charset=utf-8;" });
     const downloadAnchor = document.createElement("a");
@@ -281,11 +281,14 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ scan }) => {
         </div>
       ) : (
         <div className="space-y-3">
-          {(filteredFindings ?? []).map((item, idx) => (
-            <FindingErrorBoundary key={item?.id || `finding-${idx}`} fallbackTitle={item?.title}>
-              <FindingRemediationPanel finding={item} scan={scan} forceExpand={allExpanded ? true : undefined} />
-            </FindingErrorBoundary>
-          ))}
+          {(filteredFindings ?? []).map((item, idx) => {
+            const stableKey = `${item?.module || "mod"}-${item?.id || item?.code || "item"}-${idx}`;
+            return (
+              <FindingErrorBoundary key={stableKey} fallbackTitle={item?.title}>
+                <FindingRemediationPanel finding={item} scan={scan} forceExpand={allExpanded ? true : undefined} />
+              </FindingErrorBoundary>
+            );
+          })}
         </div>
       )}
     </div>

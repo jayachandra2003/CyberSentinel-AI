@@ -20,7 +20,7 @@ export const RiskSummaryPanel: React.FC<RiskSummaryPanelProps> = ({
   allExpanded,
   onToggleExpandAll,
 }) => {
-  const { score, riskLevel, findingsCount, averageCvss, complianceScore, modulesPassed, totalModules } = metrics;
+  const { score, riskLevel, findingsCount, averageCvss, complianceScore } = metrics;
 
   return (
     <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/60 backdrop-blur-sm space-y-3">

@@ -25,8 +25,6 @@ export const AIExecutiveSummary: React.FC<AIExecutiveSummaryProps> = ({ scan }) 
 
   const criticalCount = findingsCount?.critical ?? 0;
   const highCount = findingsCount?.high ?? 0;
-  const mediumCount = findingsCount?.medium ?? 0;
-  const lowCount = (findingsCount?.info ?? 0) + (findingsCount?.warning ?? 0);
   const targetDomain = scan?.target_domain ?? "Target Domain";
 
   // Derive Executive Risk Assessment Statement
@@ -77,7 +75,7 @@ export const AIExecutiveSummary: React.FC<AIExecutiveSummaryProps> = ({ scan }) 
                 AI Executive Security Summary
               </h3>
               <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono text-[11px] font-bold">
-                SOC Automated Briefing
+                {riskAssessment || "SOC Automated Briefing"}
               </span>
             </div>
             <p className="text-[12px] text-slate-400 font-normal mt-0.5">

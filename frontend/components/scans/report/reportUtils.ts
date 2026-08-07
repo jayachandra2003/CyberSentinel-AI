@@ -5,6 +5,7 @@ export type SeverityLevel = "CRITICAL" | "HIGH" | "MEDIUM" | "WARNING" | "INFO";
 
 export interface FindingItem {
   id: string;
+  code?: string;
   module: UnifiedModule | string;
   severity: SeverityLevel;
   title: string;
@@ -360,9 +361,11 @@ export function extractReportFindings(scan?: Scan | null): FindingItem[] {
         const description = obs.description || title;
         const severity = normalizeSeverity(obs.severity);
         const recommendation = deriveRecommendation(description, severity);
+        const code = obs.code || `CK-${String(idx + 1).padStart(3, "0")}`;
 
         findings.push({
-          id: obs.code || `CK-${String(idx + 1).padStart(3, "0")}`,
+          id: `cookie-obs-${idx}-${code}`,
+          code,
           module: "Cookies",
           severity,
           title,
@@ -382,9 +385,11 @@ export function extractReportFindings(scan?: Scan | null): FindingItem[] {
         const description = obs.description || title;
         const severity = normalizeSeverity(obs.severity);
         const recommendation = deriveRecommendation(description, severity);
+        const code = obs.code || `TCK-${String(idx + 1).padStart(3, "0")}`;
 
         findings.push({
-          id: obs.code || `TCK-${String(idx + 1).padStart(3, "0")}`,
+          id: `tech-obs-${idx}-${code}`,
+          code,
           module: "Tech",
           severity,
           title,

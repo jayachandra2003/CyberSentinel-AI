@@ -13,7 +13,6 @@ import {
   Server,
   Code2,
   Globe,
-  Shield,
 } from "lucide-react";
 import { TechScanResult, DetectedTechnology } from "@/services/api/scanService";
 import { Badge } from "@/components/ui/Badge";

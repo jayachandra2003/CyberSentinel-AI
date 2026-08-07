@@ -86,7 +86,7 @@ export const FindingRemediationPanel: React.FC<FindingRemediationPanelProps> = (
   const isExpanded = forceExpand !== undefined ? forceExpand : isExpandedLocal;
 
   const severity = finding?.severity ?? "INFO";
-  const id = finding?.id ?? "TCK-000";
+  const id = finding?.code || finding?.id || "TCK-000";
   const title = finding?.title ?? "Security Observation";
   const description = finding?.description ?? "No description available.";
   const recommendation = finding?.recommendation ?? "Follow standard web security posture hardening guidelines.";
