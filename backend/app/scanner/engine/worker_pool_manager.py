@@ -12,6 +12,7 @@ from typing import Callable, List, Optional
 
 from app.core.config import settings
 from app.scanner.engine.queue_manager import QueueManager, ScanJob
+from app.scanner.engine.retry_handler import RetryHandler
 from app.scanner.engine.state_machine import ScanEngineState
 from app.scanner.registry.scanner_module_registry import ScannerModuleRegistry
 
@@ -109,26 +110,54 @@ class WorkerPoolManager:
                 logger.error(f"Worker #{worker_id} encountered unhandled exception: {exc}", exc_info=True)
 
     async def _process_job(self, job: ScanJob) -> None:
-        """Default job execution pipeline using ScannerModuleRegistry."""
+        """Default job execution pipeline using ScannerModuleRegistry, RetryHandler, and Timeouts."""
         if job.state_machine.can_transition_to(ScanEngineState.RUNNING):
             job.state_machine.transition_to(ScanEngineState.RUNNING)
 
         modules = self.registry.get_modules_by_profile(job.profile_name)
         logger.info(f"Executing {len(modules)} modules for job #{job.job_id}")
 
-        for module in modules:
-            if job.state_machine.current_state == ScanEngineState.CANCELLED:
-                logger.info(f"Job #{job.job_id} cancelled during module execution")
-                break
+        async def _run_pipeline():
+            for module in modules:
+                if job.state_machine.current_state == ScanEngineState.CANCELLED or not self._running:
+                    logger.info(f"[MODULE_CANCELLED] Job #{job.job_id} cancelled during module loop.")
+                    break
 
-            mod_id = module.module_id
-            try:
-                # Execute with MODULE_TIMEOUT guard
-                await asyncio.wait_for(module.run(job.target_domain), timeout=float(settings.MODULE_TIMEOUT))
-            except asyncio.TimeoutError:
-                logger.warning(f"Module '{mod_id}' timed out after {settings.MODULE_TIMEOUT}s for job #{job.job_id}")
-            except Exception as exc:
-                logger.error(f"Module '{mod_id}' failed for job #{job.job_id}: {exc}")
+                mod_id = module.module_id
+
+                async def _attempt_module():
+                    return await asyncio.wait_for(
+                        module.run(job.target_domain),
+                        timeout=float(getattr(settings, "MODULE_TIMEOUT", 25)),
+                    )
+
+                try:
+                    await RetryHandler.execute(
+                        func=_attempt_module,
+                        max_retries=getattr(settings, "MAX_RETRIES", 2),
+                        backoff_factor=getattr(settings, "RETRY_BACKOFF_FACTOR", 1.5),
+                        module_id=mod_id,
+                        scan_id=job.job_id,
+                        is_cancelled_func=lambda: (
+                            job.state_machine.current_state == ScanEngineState.CANCELLED or not self._running
+                        ),
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(f"[MODULE_TIMEOUT] Module '{mod_id}' timed out after {getattr(settings, 'MODULE_TIMEOUT', 25)}s for job #{job.job_id}")
+                except Exception as exc:
+                    logger.error(f"[MODULE_FAILED] Module '{mod_id}' failed for job #{job.job_id}: {exc}")
+
+        try:
+            # Wrap entire pipeline in global scan timeout
+            await asyncio.wait_for(
+                _run_pipeline(),
+                timeout=float(getattr(settings, "SCAN_TIMEOUT", 180)),
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"[SCAN_TIMEOUT] Global scan timeout of {getattr(settings, 'SCAN_TIMEOUT', 180)}s exceeded for job #{job.job_id}")
+            if job.state_machine.can_transition_to(ScanEngineState.FAILED):
+                job.state_machine.transition_to(ScanEngineState.FAILED)
+            return
 
         if job.state_machine.current_state == ScanEngineState.RUNNING:
             if job.state_machine.can_transition_to(ScanEngineState.COMPLETED):

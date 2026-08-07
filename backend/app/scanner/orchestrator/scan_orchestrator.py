@@ -22,7 +22,11 @@ from app.scanner.modules.ssl import SSLScanner
 from app.scanner.modules.tech import TechScanner
 from app.scanner.modules.whois import WHOISScanner
 
+from app.core.config import settings
+from app.models.scan import ScanStatusEnum
+from app.repositories.scan_repository import ScanRepository
 from app.scanner.engine.progress_calculator import ProgressCalculator
+from app.scanner.engine.retry_handler import RetryHandler
 from app.scanner.registry.scanner_module_registry import ScannerModuleRegistry
 
 logger = logging.getLogger(__name__)
@@ -69,28 +73,52 @@ class ScanOrchestrator:
         scan_repo: ScanRepository,
     ) -> Tuple[str, bool, Optional[Dict[str, Any]]]:
         """
-        Execute a single module and persist its result.
+        Execute a single module wrapped with RetryHandler and per-module timeout.
 
         Returns (module_id, success, result_dict).
-        On exception, returns (module_id, False, None) — never raises.
+        On exception/exhaustion, returns (module_id, False, None) — never raises.
         """
+        async def _attempt_module() -> Dict[str, Any]:
+            return await asyncio.wait_for(
+                module.run(target),
+                timeout=float(getattr(settings, "MODULE_TIMEOUT", 25)),
+            )
+
+        async def _is_cancelled_check() -> bool:
+            curr_scan = await scan_repo.get_scan_by_id(scan_id)
+            if curr_scan and curr_scan.status == ScanStatusEnum.CANCELLED:
+                return True
+            return False
+
         try:
-            result: Dict[str, Any] = await module.run(target)
+            result: Dict[str, Any] = await RetryHandler.execute(
+                func=_attempt_module,
+                max_retries=getattr(settings, "MAX_RETRIES", 2),
+                backoff_factor=getattr(settings, "RETRY_BACKOFF_FACTOR", 1.5),
+                module_id=module.module_id,
+                scan_id=scan_id,
+                is_cancelled_func=None,
+            )
             await scan_repo.update_module_results(
                 scan_id=scan_id,
                 module_id=module.module_id,
                 result=result,
             )
             logger.info(
-                "Module %s completed for scan %d (target=%s)",
+                "[MODULE_COMPLETED] Module %s completed for scan %d (target=%s)",
                 module.module_id, scan_id, target,
             )
             return module.module_id, True, result
+        except asyncio.TimeoutError:
+            logger.warning(
+                "[MODULE_TIMEOUT] Module %s timed out after %ds for scan %d",
+                module.module_id, getattr(settings, "MODULE_TIMEOUT", 25), scan_id,
+            )
+            return module.module_id, False, None
         except Exception as exc:
             logger.error(
-                "Module %s failed for scan %d: %s",
+                "[MODULE_FAILED] Module %s failed for scan %d: %s",
                 module.module_id, scan_id, exc,
-                exc_info=True,
             )
             return module.module_id, False, None
 
@@ -103,7 +131,7 @@ class ScanOrchestrator:
     ) -> None:
         """
         Full scan lifecycle:
-            Pending → Queued → Running → [module execution] → Completed / Failed
+            Pending → Queued → Running → [module execution with retries & timeouts] → Completed / Failed
         """
         scan = await scan_repo.get_scan_by_id(scan_id)
         if not scan:
@@ -113,16 +141,13 @@ class ScanOrchestrator:
         target = scan.target_domain
 
         try:
-            # ── 1. QUEUED ──────────────────────────────────────────────
-            await scan_repo.update_scan_progress(
-                scan_id=scan_id,
-                status=ScanStatusEnum.QUEUED,
-                progress=0,
-                summary="Scan request placed in defensive processing queue.",
-            )
-            await asyncio.sleep(0.3)
+            # Check for cancellation before entering RUNNING
+            scan = await scan_repo.get_scan_by_id(scan_id)
+            if scan and scan.status == ScanStatusEnum.CANCELLED:
+                logger.info(f"Scan #{scan_id} was cancelled before starting execution.")
+                return
 
-            # ── 2. RUNNING ─────────────────────────────────────────────
+            # ── 1. RUNNING ─────────────────────────────────────────────
             started_at = datetime.now(timezone.utc)
             await scan_repo.update_scan_progress(
                 scan_id=scan_id,
@@ -132,42 +157,69 @@ class ScanOrchestrator:
                 summary="Defensive assessment engine initialised. Running registered modules…",
             )
 
-            # ── 3. Execute modules ─────────────────────────────────────
+            # ── 3. Execute modules with Global Scan Timeout ─────────────
             total_enabled_modules = len(self.modules)
             succeeded: List[str] = []
             failed: List[str] = []
 
-            for idx, module in enumerate(self.modules):
-                current_progress = ProgressCalculator.calculate_progress(idx, total_enabled_modules)
+            async def _run_all_modules():
+                for idx, module in enumerate(self.modules):
+                    # Check cancellation state before running next module
+                    curr_scan = await scan_repo.get_scan_by_id(scan_id)
+                    if curr_scan and curr_scan.status == ScanStatusEnum.CANCELLED:
+                        logger.info(f"Scan #{scan_id} cancelled during module pipeline execution.")
+                        return False
 
+                    current_progress = ProgressCalculator.calculate_progress(idx, total_enabled_modules)
+
+                    await scan_repo.update_scan_progress(
+                        scan_id=scan_id,
+                        status=ScanStatusEnum.RUNNING,
+                        progress=current_progress,
+                        summary=f"Running module: {module.module_id} against {target}…",
+                    )
+
+                    module_id, ok, _ = await self._run_module(
+                        module, target, scan_id, scan_repo
+                    )
+
+                    after_progress = ProgressCalculator.calculate_progress(idx + 1, total_enabled_modules)
+                    if ok:
+                        succeeded.append(module_id)
+                        await scan_repo.update_scan_progress(
+                            scan_id=scan_id,
+                            status=ScanStatusEnum.RUNNING,
+                            progress=min(after_progress, 99),
+                            summary=f"Module {module_id} completed successfully.",
+                        )
+                    else:
+                        failed.append(module_id)
+                        await scan_repo.update_scan_progress(
+                            scan_id=scan_id,
+                            status=ScanStatusEnum.RUNNING,
+                            progress=min(after_progress, 99),
+                            summary=f"Module {module_id} encountered an error — continuing pipeline.",
+                        )
+                return True
+
+            try:
+                completed_cleanly = await asyncio.wait_for(
+                    _run_all_modules(),
+                    timeout=float(getattr(settings, "SCAN_TIMEOUT", 180)),
+                )
+                if not completed_cleanly:
+                    return
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"[SCAN_TIMEOUT] Global scan timeout of {getattr(settings, 'SCAN_TIMEOUT', 180)}s exceeded for scan #{scan_id}"
+                )
                 await scan_repo.update_scan_progress(
                     scan_id=scan_id,
-                    status=ScanStatusEnum.RUNNING,
-                    progress=current_progress,
-                    summary=f"Running module: {module.module_id} against {target}…",
+                    status=ScanStatusEnum.FAILED,
+                    progress=0,
+                    summary=f"Scan execution timed out after {getattr(settings, 'SCAN_TIMEOUT', 180)}s.",
                 )
-
-                module_id, ok, _ = await self._run_module(
-                    module, target, scan_id, scan_repo
-                )
-
-                after_progress = ProgressCalculator.calculate_progress(idx + 1, total_enabled_modules)
-                if ok:
-                    succeeded.append(module_id)
-                    await scan_repo.update_scan_progress(
-                        scan_id=scan_id,
-                        status=ScanStatusEnum.RUNNING,
-                        progress=min(after_progress, 99),
-                        summary=f"Module {module_id} completed successfully.",
-                    )
-                else:
-                    failed.append(module_id)
-                    await scan_repo.update_scan_progress(
-                        scan_id=scan_id,
-                        status=ScanStatusEnum.RUNNING,
-                        progress=min(after_progress, 99),
-                        summary=f"Module {module_id} encountered an error — continuing pipeline.",
-                    )
+                return
 
             # ── 4. COMPLETED ───────────────────────────────────────────
             completed_at = datetime.now(timezone.utc)

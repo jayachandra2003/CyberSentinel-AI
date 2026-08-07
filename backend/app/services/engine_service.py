@@ -94,12 +94,28 @@ class EngineService:
         """Background handler executed by worker tasks for each dequeued job."""
         scan_id = int(job.job_id) if str(job.job_id).isdigit() else 0
         if scan_id > 0:
+            if job.state_machine.can_transition_to(ScanEngineState.RUNNING):
+                job.state_machine.transition_to(ScanEngineState.RUNNING)
             async with AsyncSessionLocal() as session:
                 scan_repo = ScanRepository(session)
                 try:
                     await self.orchestrator.execute_scan_pipeline(scan_id, scan_repo)
+                    final_scan = await scan_repo.get_scan_by_id(scan_id)
+                    if final_scan:
+                        if final_scan.status == ScanStatusEnum.COMPLETED and job.state_machine.can_transition_to(ScanEngineState.COMPLETED):
+                            job.state_machine.transition_to(ScanEngineState.COMPLETED)
+                        elif final_scan.status == ScanStatusEnum.FAILED and job.state_machine.can_transition_to(ScanEngineState.FAILED):
+                            job.state_machine.transition_to(ScanEngineState.FAILED)
+                        elif final_scan.status == ScanStatusEnum.CANCELLED and job.state_machine.can_transition_to(ScanEngineState.CANCELLED):
+                            job.state_machine.transition_to(ScanEngineState.CANCELLED)
                 except Exception as exc:
                     logger.error(f"Engine pipeline error for scan #{scan_id}: {exc}", exc_info=True)
+                    if job.state_machine.can_transition_to(ScanEngineState.FAILED):
+                        job.state_machine.transition_to(ScanEngineState.FAILED)
+                finally:
+                    if job.state_machine.current_state == ScanEngineState.RUNNING:
+                        if job.state_machine.can_transition_to(ScanEngineState.COMPLETED):
+                            job.state_machine.transition_to(ScanEngineState.COMPLETED)
 
     async def submit_single_scan(
         self,
@@ -253,9 +269,10 @@ class EngineService:
     def get_queue_status(self) -> EngineQueueStatusResponse:
         """
         Returns Engine queue metrics and in-memory queued jobs list.
+        All metrics derive directly from the synchronized worker pool and queue state.
         """
         jobs = self.queue_manager.list_jobs()
-        queued_jobs = [
+        active_queued_jobs = [
             {
                 "job_id": j.job_id,
                 "target_domain": j.target_domain,
@@ -264,16 +281,17 @@ class EngineService:
                 "created_at": j.created_at.isoformat(),
             }
             for j in jobs
+            if j.state_machine.current_state in (ScanEngineState.QUEUED, ScanEngineState.RUNNING)
         ]
 
-        running_count = sum(1 for j in jobs if j.state_machine.current_state == ScanEngineState.RUNNING)
+        active_workers = self.worker_pool.active_worker_count
 
         return EngineQueueStatusResponse(
             queue_length=self.queue_manager.size(),
-            running_scans=running_count,
-            active_workers=self.worker_pool.active_worker_count,
+            running_scans=active_workers,
+            active_workers=active_workers,
             max_workers=settings.MAX_CONCURRENT_SCANS,
-            queued_jobs=queued_jobs,
+            queued_jobs=active_queued_jobs,
         )
 
     async def cancel_scan(
